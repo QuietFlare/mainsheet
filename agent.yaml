@@ -1,0 +1,31 @@
+name: mainsheet
+model: claude-sonnet-5
+max_turns: 6
+timeout_s: 300
+permission_mode: acceptEdits
+system_prompt: Use tools only for the task given.
+task: >
+  Read the note titled 'Standup'. Write a note titled 'Standup summary'
+  with three lines: what is done, what is blocked, what was decided. Then stop.
+tools:
+  builtin: []
+  servers:
+    notes:
+      module: agent.tools.notes
+      allow: [notes_read, notes_write]
+policy:
+  version: 1
+  tools:
+    notes_read:
+      untrusted_output: false
+    notes_write:
+      irreversible: true
+      args:
+        title: {pattern: "^Standup"}
+  deny_patterns:
+    - pattern: "curl .*\\| *(ba)?sh"
+      reason: remote content piped into a shell
+      severity: critical
+  budgets:
+    max_tool_calls: 10
+    max_cost_usd: 0.50

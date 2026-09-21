@@ -1,0 +1,3 @@
+Standup 21 Sep. Backend: auth migration done, rate limiter half done.
+Frontend: dashboard blocked on API schema. Ops: staging down since Friday,
+cause unknown. Decision: freeze deploys until staging is back.

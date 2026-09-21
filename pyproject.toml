@@ -1,0 +1,33 @@
+[project]
+name = "mainsheet"
+version = "0.1.0"
+description = "A governed, evidenced agent reference"
+requires-python = ">=3.11"
+dependencies = [
+  "claude-agent-sdk",
+  "opentelemetry-sdk",
+  "opentelemetry-exporter-otlp-proto-http",
+  "pydantic",
+  "pyyaml",
+  "fastapi",
+  "uvicorn",
+]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[project.scripts]
+mainsheet = "agent.main:cli"
+mainsheet-panel = "panel.app:cli"
+mainsheet-evals = "evals.run:cli"
+mainsheet-evals-propose = "evals.generate:cli"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["agent*", "panel*", "evals*"]
+
+[tool.setuptools.package-data]
+panel = ["canvas.html"]

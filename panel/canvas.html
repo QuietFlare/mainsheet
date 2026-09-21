@@ -1,0 +1,203 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Mainsheet</title>
+<link rel="stylesheet" href="https://esm.sh/@xyflow/react@12.3.5/dist/style.css">
+<style>
+  html,body{height:100%;margin:0;font:14px/1.5 system-ui,sans-serif;color:#1e2329;background:#f5f6f8}
+  #app{display:grid;grid-template-columns:minmax(0,1fr) 360px;height:100%}
+  .canvas{position:relative;height:100%;min-width:0}
+  .bar{position:absolute;top:12px;left:12px;right:12px;z-index:5;display:flex;gap:8px;align-items:center;white-space:nowrap;overflow:hidden}
+  .bar .empty{font-size:12px;overflow:hidden;text-overflow:ellipsis}
+  .bar input{padding:6px 8px;border:1px solid #c9cfd8;border-radius:4px;font:inherit}
+  button{padding:5px 12px;border:1px solid #6e63c4;background:#e7e4f7;border-radius:4px;font:inherit;cursor:pointer}
+  button.quiet{border-color:#c9cfd8;background:#fff}
+  .node{background:#fff;border:1px solid #6e63c4;border-radius:8px;padding:10px 12px;min-width:180px;box-shadow:0 1px 2px rgba(0,0,0,.06)}
+  .node.sel{outline:2px solid #6e63c4}
+  .node b{display:block;font-weight:500}
+  .node small{color:#4b5563;display:block}
+  .badge{display:inline-block;font-size:11px;padding:1px 6px;border-radius:10px;margin-top:6px;background:#edeff2;color:#4b5563}
+  .badge.running{background:#ddf1ec;color:#0b4f4a}.badge.failed{background:#fcebeb;color:#791f1f}.badge.finished{background:#e7e4f7;color:#2e2873}
+  aside{border-left:1px solid #c9cfd8;background:#fff;padding:16px;overflow:auto}
+  aside h2{font-size:14px;font-weight:500;margin:0 0 8px}
+  label{display:block;margin:10px 0 4px;font-size:12px;color:#4b5563;text-transform:uppercase;letter-spacing:.04em}
+  input,select,textarea{width:100%;box-sizing:border-box;padding:6px 8px;border:1px solid #c9cfd8;border-radius:4px;font:inherit}
+  textarea{min-height:70px}
+  .tool{display:flex;gap:8px;align-items:flex-start;margin:6px 0;font-size:13px}
+  .err{color:#a32d2d;font-size:12px;min-height:1em;margin-top:6px}
+  .row{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+  pre{margin:12px 0 0;font:12px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap;max-height:34vh;overflow:auto;background:#f5f6f8;padding:10px;border-radius:6px}
+  .empty{color:#8a94a3}
+  table.policy{width:100%;border-collapse:collapse;font-size:12px}
+  table.policy th,table.policy td{text-align:left;padding:4px;border-top:1px solid #e5e7eb;vertical-align:top}
+  table.policy th{font-weight:500;color:#4b5563}
+  table.policy td input[type=checkbox]{width:auto}
+  table.policy td textarea{min-height:34px;font-size:11px}
+  table.policy tr.missing td{color:#a32d2d}
+  .row.dp input{flex:1;min-width:0}
+  #app{grid-template-columns:minmax(0,1fr) 520px}
+</style>
+<div id="app"></div>
+<script type="module">
+import React, {useState, useEffect, useCallback} from "https://esm.sh/react@18.3.1";
+import {createRoot} from "https://esm.sh/react-dom@18.3.1/client";
+import htm from "https://esm.sh/htm@3.1.1";
+import {ReactFlow, Background, Controls, MiniMap, MarkerType, Handle, Position, applyNodeChanges, applyEdgeChanges, addEdge}
+  from "https://esm.sh/@xyflow/react@12.3.5?deps=react@18.3.1,react-dom@18.3.1";
+
+const h = htm.bind(React.createElement);
+const FIELDS = ["name","model","max_turns","timeout_s","permission_mode","system_prompt","task"];
+
+async function api(method, url, body) {
+  const r = await fetch(url, {method, headers: {"content-type": "application/json"}, body: body && JSON.stringify(body)});
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(Array.isArray(d.detail) ? d.detail.map(e => `${e.loc.slice(1).join(".")}: ${e.msg}`).join("; ") : (d.detail || r.statusText));
+  return d;
+}
+
+function AgentNode({data, selected}) {
+  const latest = data.latest;
+  return h`<div class=${"node" + (selected ? " sel" : "")}>
+    <${Handle} type="target" position=${Position.Left} />
+    <${Handle} type="source" position=${Position.Right} />
+    <b>${data.name}</b><small>${data.model}</small><small>${data.tools} tools</small>
+    ${latest && h`<span class=${"badge " + latest.status}>${latest.status}${latest.cost_usd != null ? " · $" + latest.cost_usd.toFixed(3) : ""}</span>`}
+    ${latest && latest.incidents > 0 && h`<span class="badge failed">${latest.incidents} incident${latest.incidents > 1 ? "s" : ""}</span>`}
+  </div>`;
+}
+const nodeTypes = {agent: AgentNode};
+
+function App() {
+  const [nodes, setNodes] = useState([]);
+  const [edges, setEdges] = useState([]);
+  const [schema, setSchema] = useState(null);
+  const [selected, setSelected] = useState(null);
+  const [cfg, setCfg] = useState(null);
+  const [tools, setTools] = useState({});
+  const [instances, setInstances] = useState([]);
+  const [err, setErr] = useState("");
+  const [log, setLog] = useState("");
+  const [newName, setNewName] = useState("");
+
+  const loadSystem = useCallback(async () => {
+    const [sys, inst] = await Promise.all([api("GET", "/api/system"), api("GET", "/api/instances")]);
+    const cfgs = await Promise.all(sys.agents.map(a => api("GET", `/api/agents/${a.name}`)));
+    setInstances(inst);
+    setNodes(sys.agents.map((a, i) => ({id: a.name, type: "agent", position: {x: a.x, y: a.y}, data: {
+      name: a.name, model: cfgs[i].model,
+      tools: Object.values(cfgs[i].tools.servers).reduce((n, s) => n + s.allow.length, 0),
+      latest: inst.filter(x => x.name === a.name).slice(-1)[0] || null}})));
+    setEdges(sys.edges.map(e => ({id: `${e.source}-${e.target}`, source: e.source, target: e.target, label: e.kind,
+      markerEnd: {type: MarkerType.ArrowClosed}})));
+  }, []);
+
+  useEffect(() => { api("GET", "/api/schema").then(setSchema); loadSystem(); const t = setInterval(loadSystem, 2000); return () => clearInterval(t); }, [loadSystem]);
+
+  const persist = async (ns, es) => {
+    try { await api("PUT", "/api/system", {agents: ns.map(n => ({name: n.id, x: n.position.x, y: n.position.y})),
+      edges: es.map(e => ({source: e.source, target: e.target, kind: "delegates"}))}); setErr(""); }
+    catch (e) { setErr(e.message); }
+  };
+
+  const onNodesChange = useCallback(ch => setNodes(ns => applyNodeChanges(ch, ns)), []);
+  const onEdgesChange = useCallback(ch => setEdges(es => { const next = applyEdgeChanges(ch, es); if (ch.some(c => c.type === "remove")) persist(nodes, next); return next; }), [nodes]);
+  const onConnect = useCallback(c => setEdges(es => { const next = addEdge({...c, label: "delegates", markerEnd: {type: MarkerType.ArrowClosed}}, es); persist(nodes, next); return next; }), [nodes]);
+  const onNodeDragStop = useCallback(() => persist(nodes, edges), [nodes, edges]);
+
+  const select = async (name) => {
+    setSelected(name); setLog(""); setErr("");
+    if (!name) { setCfg(null); return; }
+    const [c, t] = await Promise.all([api("GET", `/api/agents/${name}`), api("GET", `/api/agents/${name}/tools`)]);
+    setCfg(c); setTools(t);
+  };
+
+  const create = async () => {
+    try { await api("POST", "/api/agents", {name: newName, x: 80 + nodes.length * 40, y: 80 + nodes.length * 40}); setNewName(""); await loadSystem(); setErr(""); }
+    catch (e) { setErr(e.message); }
+  };
+  const save = async () => { try { setCfg(await api("PUT", `/api/agents/${selected}`, cfg)); setErr(""); await loadSystem(); } catch (e) { setErr(e.message); } };
+  const remove = async () => { try { await api("DELETE", `/api/agents/${selected}`); await select(null); await loadSystem(); } catch (e) { setErr(e.message); } };
+  const run = async () => { try { const inst = await api("POST", `/api/agents/${selected}/run`); watch(inst.id); await loadSystem(); } catch (e) { setErr(e.message); } };
+  const stop = async (id) => { try { await api("POST", `/api/instances/${id}/stop`); await loadSystem(); } catch (e) { setErr(e.message); } };
+
+  let source = null;
+  const watch = (id) => {
+    setLog("");
+    if (source) source.close();
+    source = new EventSource(`/api/instances/${id}/events`);
+    source.onmessage = e => { const ev = JSON.parse(e.data);
+      const rest = Object.fromEntries(Object.entries(ev).filter(([k]) => !["ts","instance","kind"].includes(k)));
+      setLog(l => l + `${new Date(ev.ts * 1000).toLocaleTimeString()}  ${ev.kind}  ${JSON.stringify(rest)}\n`); };
+  };
+
+  const field = (k, el) => h`<label>${k.replace("_", " ")}</label>${el}`;
+  const p = schema?.properties || {};
+  const setF = (k, v) => setCfg(c => ({...c, [k]: v}));
+  const toggle = (server, name, on) => setCfg(c => { const s = structuredClone(c.tools.servers); const set = new Set(s[server].allow);
+    on ? set.add(name) : set.delete(name); s[server].allow = [...set]; return {...c, tools: {...c.tools, servers: s}}; });
+  const mine = instances.filter(i => i.name === selected);
+  const setPolicy = (fn) => setCfg(c => { const p = structuredClone(c.policy); fn(p); return {...c, policy: p}; });
+  const toolNames = [...new Set(Object.values(tools).flat().map(t => t.name))];
+  const ruleOf = (name) => cfg?.policy.tools[name] || {allow: true, approval: "none", irreversible: false, untrusted_output: false, args: {}};
+  const setRule = (name, patch) => setPolicy(p => { p.tools[name] = {...ruleOf(name), ...patch}; });
+  const setArgs = (name, text) => setPolicy(p => { const args = {};
+    text.split("\n").map(l => l.trim()).filter(Boolean).forEach(l => { const [k, ...rest] = l.split("="); if (k && rest.length) args[k.trim()] = {pattern: rest.join("=").trim()}; });
+    p.tools[name] = {...ruleOf(name), args}; });
+
+  return h`
+    <div class="canvas">
+      <div class="bar">
+        <input placeholder="new agent name: lowercase, digits, _ or -" value=${newName} onInput=${e => setNewName(e.target.value)} />
+        <button onClick=${create}>Add agent</button>
+        <span class="empty">drag from a node's edge to another to connect · select and press Backspace to remove</span>
+      </div>
+      <${ReactFlow} nodes=${nodes} edges=${edges} nodeTypes=${nodeTypes} fitView
+        onNodesChange=${onNodesChange} onEdgesChange=${onEdgesChange} onConnect=${onConnect}
+        onNodeDragStop=${onNodeDragStop} onNodeClick=${(_, n) => select(n.id)} onPaneClick=${() => select(null)}>
+        <${Background} /><${Controls} /><${MiniMap} />
+      <//>
+    </div>
+    <aside>
+      ${!cfg ? h`<h2>Agent</h2><p class="empty">Select a node, or add one.</p><div class="err">${err}</div>` : h`
+        <h2>${cfg.name}</h2>
+        ${field("model", h`<select value=${cfg.model} onChange=${e => setF("model", e.target.value)}>${(p.model?.enum || []).map(v => h`<option value=${v}>${v}</option>`)}</select>`)}
+        ${field("max_turns", h`<input type="number" min=${p.max_turns?.minimum} max=${p.max_turns?.maximum} value=${cfg.max_turns} onInput=${e => setF("max_turns", Number(e.target.value))} />`)}
+        ${field("timeout_s", h`<input type="number" min=${p.timeout_s?.minimum} max=${p.timeout_s?.maximum} value=${cfg.timeout_s} onInput=${e => setF("timeout_s", Number(e.target.value))} />`)}
+        ${field("permission_mode", h`<select value=${cfg.permission_mode} onChange=${e => setF("permission_mode", e.target.value)}>${(p.permission_mode?.enum || []).map(v => h`<option value=${v}>${v}</option>`)}</select>`)}
+        ${field("system_prompt", h`<textarea value=${cfg.system_prompt} onInput=${e => setF("system_prompt", e.target.value)} />`)}
+        ${field("task", h`<textarea value=${cfg.task} onInput=${e => setF("task", e.target.value)} />`)}
+        <label>tools</label>
+        ${Object.entries(tools).map(([server, list]) => list.map(t => h`<div class="tool">
+          <input type="checkbox" checked=${cfg.tools.servers[server].allow.includes(t.name)} onChange=${e => toggle(server, t.name, e.target.checked)} />
+          <div><b>${server}: ${t.name}</b><br /><small>${t.description}</small></div></div>`))}
+        <label>policy · version ${cfg.policy.version}</label>
+        <table class="policy">
+          <thead><tr><th>tool</th><th>allow</th><th>approval</th><th>irreversible</th><th>untrusted output</th><th>argument rules</th></tr></thead>
+          <tbody>${toolNames.map(name => { const r = ruleOf(name); const inTable = name in cfg.policy.tools; return h`<tr class=${inTable ? "" : "missing"}>
+            <td>${name}${inTable ? "" : h`<small> not in policy: denied</small>`}</td>
+            <td><input type="checkbox" checked=${inTable && r.allow} onChange=${e => setRule(name, {allow: e.target.checked})} /></td>
+            <td><select value=${r.approval} onChange=${e => setRule(name, {approval: e.target.value})}><option>none</option><option>human</option></select></td>
+            <td><input type="checkbox" checked=${r.irreversible} onChange=${e => setRule(name, {irreversible: e.target.checked})} /></td>
+            <td><input type="checkbox" checked=${r.untrusted_output} onChange=${e => setRule(name, {untrusted_output: e.target.checked})} /></td>
+            <td><textarea rows="2" placeholder="arg=regex, one per line" value=${Object.entries(r.args).map(([k, v]) => `${k}=${v.pattern}`).join("\n")} onInput=${e => setArgs(name, e.target.value)} /></td></tr>`; })}</tbody>
+        </table>
+        <label>deny patterns</label>
+        ${cfg.policy.deny_patterns.map((dp, i) => h`<div class="row dp">
+          <input placeholder="regex" value=${dp.pattern} onInput=${e => setPolicy(p => { p.deny_patterns[i].pattern = e.target.value; })} />
+          <input placeholder="reason" value=${dp.reason} onInput=${e => setPolicy(p => { p.deny_patterns[i].reason = e.target.value; })} />
+          <select value=${dp.severity} onChange=${e => setPolicy(p => { p.deny_patterns[i].severity = e.target.value; })}><option>low</option><option>medium</option><option>high</option><option>critical</option></select>
+          <button class="quiet" onClick=${() => setPolicy(p => { p.deny_patterns.splice(i, 1); })}>remove</button></div>`)}
+        <button class="quiet" onClick=${() => setPolicy(p => { p.deny_patterns.push({pattern: "", reason: "", severity: "high"}); })}>Add deny pattern</button>
+        <label>budgets</label>
+        <div class="row"><input type="number" min="1" value=${cfg.policy.budgets.max_tool_calls} onInput=${e => setPolicy(p => { p.budgets.max_tool_calls = Number(e.target.value); })} />
+          <input type="number" step="0.01" min="0.01" value=${cfg.policy.budgets.max_cost_usd} onInput=${e => setPolicy(p => { p.budgets.max_cost_usd = Number(e.target.value); })} /></div>
+        <small class="empty">max tool calls · max cost USD</small>
+        <div class="err">${err}</div>
+        <div class="row"><button onClick=${save}>Save</button><button onClick=${run}>Run</button><button class="quiet" onClick=${remove}>Delete agent</button></div>
+        <label>instances</label>
+        ${mine.length === 0 ? h`<p class="empty">none yet</p>` : mine.map(i => h`<div class="tool"><span>${i.id} · ${i.status} · ${i.turns} turns${i.cost_usd != null ? " · $" + i.cost_usd.toFixed(3) : ""}${i.incidents ? " · " + i.incidents + " incidents" : ""}</span>
+          <button class="quiet" onClick=${() => watch(i.id)}>events</button>${i.status === "running" && h`<button class="quiet" onClick=${() => stop(i.id)}>stop</button>`}</div>`)}
+        <pre>${log}</pre>`}
+    </aside>`;
+}
+createRoot(document.getElementById("app")).render(h`<${App} />`);
+</script>

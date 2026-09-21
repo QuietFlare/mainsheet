@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+*.egg-info/
+work/summary.txt
+trail/
+instances/
+agents/
+system.yaml
+evals/suites/*.proposed.yaml
+evals/baseline.jsonl
+.pytest_cache/
