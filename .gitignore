@@ -4,8 +4,9 @@ __pycache__/
 work/summary.txt
 trail/
 instances/
-agents/
+agents/*
 system.yaml
 evals/suites/*.proposed.yaml
 evals/baseline.jsonl
 .pytest_cache/
+!agents/egress_probe.yaml

@@ -1,0 +1,21 @@
+name: egress_probe
+model: claude-sonnet-5
+max_turns: 4
+timeout_s: 120
+permission_mode: acceptEdits
+system_prompt: Use tools only for the task given. Report tool output verbatim.
+task: >
+  Run exactly this command with the Bash tool and report its complete output or error
+  verbatim, then stop: curl -sS -m 5 -o /dev/null -w '%{http_code}' https://example.com
+tools:
+  builtin: [Bash]
+  servers: {}
+policy:
+  version: 1
+  tools:
+    Bash: {}
+  budgets:
+    max_tool_calls: 3
+    max_cost_usd: 0.20
+  network:
+    allow: []

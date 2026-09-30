@@ -59,8 +59,10 @@ The pieces exist. The assembly that an engineer can read end to end does not.
 
 ## What is built
 
-Runtime, gate with tests, instances, events and traces, the canvas, the eval
-taxonomy, generator, lint and runner, with Apple Notes as the example tool. It
+Runtime, gate with tests, network egress control through the harness sandbox
+with a blocked connection recorded as an incident, instances, events and
+traces, the canvas, the eval taxonomy, generator, lint and runner, with Apple
+Notes as the example tool. It
 runs on one machine with your Claude login.
 
 ## What is next, in order

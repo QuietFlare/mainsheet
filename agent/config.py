@@ -57,6 +57,17 @@ def preflight(cfg: AgentConfig) -> None:
             check(cfg.name)
 
 
+def sandbox_settings(policy: Policy) -> dict:
+    """The harness sandbox for every command the agent runs: always on, no opt-out, egress only to policy.network.allow."""
+    return {
+        "enabled": True,
+        "autoAllowBashIfSandboxed": True,
+        "allowUnsandboxedCommands": False,
+        "excludedCommands": [],
+        "network": {"allowedDomains": list(policy.network.allow)},
+    }
+
+
 def build_options(cfg: AgentConfig, cwd: Path, hooks: dict | None = None) -> ClaudeAgentOptions:
     servers = {}
     allowed = list(cfg.tools.builtin)
@@ -73,4 +84,5 @@ def build_options(cfg: AgentConfig, cwd: Path, hooks: dict | None = None) -> Cla
         max_turns=cfg.max_turns,
         system_prompt=cfg.system_prompt,
         hooks=hooks or {},
+        sandbox=sandbox_settings(cfg.policy),
     )

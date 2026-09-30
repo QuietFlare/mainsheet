@@ -190,6 +190,9 @@ function App() {
         <label>budgets</label>
         <div class="row"><input type="number" min="1" value=${cfg.policy.budgets.max_tool_calls} onInput=${e => setPolicy(p => { p.budgets.max_tool_calls = Number(e.target.value); })} />
           <input type="number" step="0.01" min="0.01" value=${cfg.policy.budgets.max_cost_usd} onInput=${e => setPolicy(p => { p.budgets.max_cost_usd = Number(e.target.value); })} /></div>
+        <label>network: hosts commands may reach (empty = none)</label>
+        <div class="row"><input placeholder="example.com, api.internal" value=${(cfg.policy.network?.allow || []).join(", ")}
+          onInput=${e => setPolicy(p => { p.network = {allow: e.target.value.split(",").map(x => x.trim()).filter(Boolean)}; })} /></div>
         <small class="empty">max tool calls · max cost USD</small>
         <div class="err">${err}</div>
         <div class="row"><button onClick=${save}>Save</button><button onClick=${run}>Run</button><button class="quiet" onClick=${remove}>Delete agent</button></div>

@@ -104,3 +104,12 @@ behaviour. Applied in `evals/run.py`.
 
 - The agent name rule is defined in three places. Move it to one constant.
 - The model list is a constant. Fetch it at startup once an API key is used.
+
+## Egress is a process boundary, not a rule
+
+A rule the gate applies can be argued with or retried; a closed socket cannot.
+The policy's `network.allow` list is handed to the harness sandbox, which
+denies every other host to every command the agent runs. Empty means none.
+The gate never sees a socket; it sees the sandbox's violation report in the
+tool result and records it as a critical incident. Applied in
+`agent/config.py`, `sandbox_settings()`, and `agent/policy.py`, `Gate.post()`.

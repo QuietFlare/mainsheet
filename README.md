@@ -71,6 +71,11 @@ One schema validates this file, the panel's API and the panel's form.
   required, or an irreversible tool after untrusted output: each is refused
   with a reason the model reads. A refused call stays refused; a retry does not
   get a fresh decision.
+- **Commands cannot reach the network unless the policy says so.** Every
+  command the agent runs is sandboxed by the harness (Seatbelt on macOS,
+  bubblewrap on Linux) with egress limited to `policy.network.allow`, empty
+  by default. A blocked connection is a `sandbox:network` incident. In-process
+  tool modules are operator code and are not sandboxed.
 - **Every decision is recorded.** `policy.decision` for all, `incident` for
   refusals, with severity, rule, tool, argument digest and policy version.
 - **Instances have a lifecycle.** Created, running, finished, failed,

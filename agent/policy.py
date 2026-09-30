@@ -33,11 +33,23 @@ class Budgets(BaseModel):
     max_cost_usd: float = Field(default=1.0, gt=0)
 
 
+class Network(BaseModel):
+    """Hosts that commands run by the agent may reach. Empty means none.
+
+    Enforced at the process boundary by the harness sandbox (Seatbelt on macOS,
+    bubblewrap on Linux), not by the gate: a rule can be argued with, a closed
+    socket cannot. The model call itself is made by the harness outside the
+    sandbox and is unaffected.
+    """
+    allow: list[str] = []
+
+
 class Policy(BaseModel):
     version: int = 1
     tools: dict[str, ToolRule] = {}
     deny_patterns: list[DenyPattern] = []
     budgets: Budgets = Budgets()
+    network: Network = Network()
 
 
 class Decision(BaseModel):
@@ -97,14 +109,31 @@ class Gate:
         self.tool_calls += 1
         return Decision(allow=True, rule="allowed")
 
-    def post(self, tool_name: str) -> None:
+    def post(self, tool_name: str, tool_response=None) -> Decision | None:
+        """After a call: mark taint, and surface a sandbox violation as a critical decision."""
         rule = self.policy.tools.get(short_name(tool_name))
         if rule and rule.untrusted_output:
             self.tainted = True
+        violation = sandbox_violation(tool_response)
+        if violation:
+            return Decision(allow=False, rule="sandbox:network", severity="critical", reason=violation)
+        return None
 
     def _deny(self, name: str, digest: str, rule: str, severity: Severity, reason: str) -> Decision:
         self.denied.add((name, digest))
         return Decision(allow=False, rule=rule, severity=severity, reason=reason)
+
+
+VIOLATION = re.compile(r"deny network-outbound [^\s`'\"]+")
+
+
+def sandbox_violation(tool_response) -> str | None:
+    """The harness sandbox reports a blocked connection inside the tool result; pull out the one line that matters."""
+    if tool_response is None:
+        return None
+    text = tool_response if isinstance(tool_response, str) else json.dumps(tool_response, default=str)
+    m = VIOLATION.search(text)
+    return m.group(0) if m else None
 
 
 def _strings(value) -> list[str]:
@@ -132,7 +161,15 @@ def make_hooks(gate: Gate, on_decision) -> dict[str, list[HookMatcher]]:
         }}
 
     async def post(input_data, tool_use_id, context):
-        gate.post(input_data["tool_name"])
+        # A failed command arrives as PostToolUseFailure with `error`; a successful one as PostToolUse with `tool_response`.
+        response = input_data.get("tool_response", input_data.get("error"))
+        decision = gate.post(input_data["tool_name"], response)
+        if decision is not None:
+            on_decision(input_data["tool_name"], input_data.get("tool_input") or {}, decision)
         return {}
 
-    return {"PreToolUse": [HookMatcher(hooks=[pre])], "PostToolUse": [HookMatcher(hooks=[post])]}
+    return {
+        "PreToolUse": [HookMatcher(hooks=[pre])],
+        "PostToolUse": [HookMatcher(hooks=[post])],
+        "PostToolUseFailure": [HookMatcher(hooks=[post])],
+    }
