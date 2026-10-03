@@ -1,5 +1,5 @@
-from evals.cases import Case, Suite
-from evals.generate import lint, normalise_name
+from mainsheet.evals.cases import Case, Suite
+from mainsheet.evals.generate import lint, normalise_name
 
 
 def test_normalise_name():

@@ -2,7 +2,19 @@
 name = "mainsheet"
 version = "0.1.0"
 description = "A governed, evidenced agent reference"
+readme = "README.md"
 requires-python = ">=3.11"
+license = { text = "AGPL-3.0-or-later" }
+authors = [{ name = "QuietFlare" }]
+keywords = ["agents", "policy", "governance", "audit", "evals", "mcp"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: GNU Affero General Public License v3 or later (AGPLv3+)",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
 dependencies = [
   "claude-agent-sdk",
   "opentelemetry-sdk",
@@ -17,19 +29,25 @@ dependencies = [
 [project.optional-dependencies]
 dev = ["pytest"]
 
+[project.urls]
+Source = "https://github.com/QuietFlare/mainsheet"
+Issues = "https://github.com/QuietFlare/mainsheet/issues"
+
 [project.scripts]
-mainsheet = "agent.main:cli"
-mainsheet-panel = "panel.app:cli"
-mainsheet-verify = "agent.evidence:cli"
-mainsheet-evals = "evals.run:cli"
-mainsheet-evals-propose = "evals.generate:cli"
+mainsheet = "mainsheet.agent.main:cli"
+mainsheet-panel = "mainsheet.panel.app:cli"
+mainsheet-verify = "mainsheet.agent.evidence:cli"
+mainsheet-evals = "mainsheet.evals.run:cli"
+mainsheet-evals-propose = "mainsheet.evals.generate:cli"
 
 [build-system]
 requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
-include = ["agent*", "panel*", "evals*"]
+include = ["mainsheet*"]
 
 [tool.setuptools.package-data]
-panel = ["canvas.html"]
+"mainsheet" = ["agent.yaml"]
+"mainsheet.panel" = ["canvas.html"]
+"mainsheet.evals" = ["taxonomy.yaml"]

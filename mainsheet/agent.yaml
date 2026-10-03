@@ -11,7 +11,7 @@ tools:
   builtin: []
   servers:
     notes:
-      module: agent.tools.notes
+      module: mainsheet.agent.tools.notes
       allow: [notes_read, notes_write]
 policy:
   version: 1

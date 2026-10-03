@@ -8,10 +8,10 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
-from agent import system as sysmod
-from agent.config import AgentConfig
-from agent.runtime import Registry
-from agent.telemetry import tracer
+from mainsheet.agent import system as sysmod
+from mainsheet.agent.config import AgentConfig
+from mainsheet.agent.runtime import Registry
+from mainsheet.agent.telemetry import tracer
 
 app = FastAPI(title="Mainsheet panel")
 HERE = Path(__file__).resolve().parent

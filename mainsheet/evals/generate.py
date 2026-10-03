@@ -10,10 +10,10 @@ from pathlib import Path
 
 from claude_agent_sdk import ClaudeAgentOptions, ResultMessage, query
 
-from agent.config import load
-from evals.cases import Case, Suite, load_taxonomy, save_suite
+from mainsheet.agent.config import load
+from mainsheet.evals.cases import Case, Suite, load_taxonomy, save_suite
+from mainsheet.paths import HOME, default_agent
 
-ROOT = Path(__file__).resolve().parent.parent
 
 PROMPT = """You write test cases for an AI agent. Reply with JSON only: a list of case objects.
 
@@ -121,9 +121,9 @@ def lint(suite: Suite) -> list[str]:
 
 
 def cli() -> None:
-    definition = Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / "agent.yaml"
+    definition = Path(sys.argv[1]) if len(sys.argv) > 1 else default_agent()
     suite = asyncio.run(propose(definition))
-    out = ROOT / "evals" / "suites" / f"{suite.agent}.proposed.yaml"
+    out = HOME / "evals" / "suites" / f"{suite.agent}.proposed.yaml"
     save_suite(suite, out)
     print(f"{len(suite.cases)} cases proposed for {suite.agent}: {out}")
     print("review, edit, then rename to", out.with_name(f"{suite.agent}.yaml").name)

@@ -8,13 +8,13 @@ from pathlib import Path
 
 from claude_agent_sdk import ClaudeAgentOptions, ResultMessage, query
 
-from agent.config import load
-from agent.runtime import Registry, Status
-from agent.telemetry import shutdown, tracer
-from evals.cases import Case, Suite, load_suite
+from mainsheet.agent.config import load
+from mainsheet.agent.runtime import Registry, Status
+from mainsheet.agent.telemetry import shutdown, tracer
+from mainsheet.evals.cases import Case, Suite, load_suite
+from mainsheet.paths import HOME, default_agent
 
-ROOT = Path(__file__).resolve().parent.parent
-BASELINE = ROOT / "evals" / "baseline.jsonl"
+BASELINE = HOME / "evals" / "baseline.jsonl"
 
 
 def adapters(cfg):
@@ -82,7 +82,8 @@ async def run_case(cfg, case: Case) -> dict:
 
 async def main(suite_path: Path) -> int:
     suite = load_suite(suite_path)
-    cfg = load(ROOT / "agents" / f"{suite.agent}.yaml") if (ROOT / "agents" / f"{suite.agent}.yaml").exists() else load(ROOT / "agent.yaml")
+    definition = HOME / "agents" / f"{suite.agent}.yaml"
+    cfg = load(definition if definition.exists() else default_agent())
     tracer()
     results = [await run_case(cfg, c) for c in suite.cases]
     row = {"ts": time.time(), "agent": suite.agent, "model": cfg.model, "policy_version": cfg.policy.version,

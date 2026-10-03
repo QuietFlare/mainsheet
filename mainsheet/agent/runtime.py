@@ -18,13 +18,13 @@ from claude_agent_sdk import (
 )
 from opentelemetry import trace
 
-from agent.config import AgentConfig, build_options, digest, preflight
-from agent.events import EventLog
-from agent.evidence import TRAIL, Evidence
-from agent.policy import Decision, Gate, args_digest, make_hooks
+from mainsheet.agent.config import AgentConfig, build_options, credential, digest, preflight
+from mainsheet.agent.events import EventLog
+from mainsheet.agent.evidence import TRAIL, Evidence
+from mainsheet.agent.policy import Decision, Gate, args_digest, make_hooks
+from mainsheet.paths import HOME
 
-ROOT = Path(__file__).resolve().parent.parent
-INSTANCES = ROOT / "instances"
+INSTANCES = HOME / "instances"
 
 
 class Status(str, Enum):
@@ -159,7 +159,9 @@ async def run_loop(inst: Instance) -> None:
         run.set_attribute("gen_ai.request.model", cfg.model)
         run.set_attribute("mainsheet.instance", inst.id)
         run.set_attribute("mainsheet.principal", inst.principal)
-        log.emit("run.started", task=cfg.task, model=cfg.model, principal=inst.principal)
+        billed_to = credential()
+        print(f"[{inst.id}] credential: {billed_to}")
+        log.emit("run.started", task=cfg.task, model=cfg.model, principal=inst.principal, credential=billed_to)
         async for message in query(prompt=cfg.task, options=options):
             if isinstance(message, AssistantMessage):
                 inst.turns += 1

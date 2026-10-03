@@ -9,10 +9,10 @@ from vaara.audit.sqlite_backend import SQLiteAuditBackend
 from vaara.audit.trail import EventType
 from vaara.taxonomy.actions import UNKNOWN_ACTION, ActionRequest
 
-from agent.policy import Decision, args_digest
+from mainsheet.agent.policy import Decision, args_digest
+from mainsheet.paths import HOME
 
-ROOT = Path(__file__).resolve().parent.parent
-TRAIL = ROOT / "trail"
+TRAIL = HOME / "trail"
 DB = "audit.db"
 
 
@@ -107,7 +107,7 @@ def cli() -> None:
     if not (TRAIL / DB).exists():
         raise SystemExit(f"no trail at {TRAIL / DB}")
     instance = sys.argv[1]
-    events = ROOT / "instances" / instance / "events.jsonl"
+    events = HOME / "instances" / instance / "events.jsonl"
     failed = 0
     if events.exists():
         lines = verify(events)

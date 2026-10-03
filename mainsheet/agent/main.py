@@ -3,12 +3,12 @@ import asyncio
 import sys
 from pathlib import Path
 
-from agent.config import load
-from agent.runtime import Registry, Status
-from agent.telemetry import shutdown, tracer
+from mainsheet.agent.config import load
+from mainsheet.agent.runtime import Registry, Status
+from mainsheet.agent.telemetry import shutdown, tracer
+from mainsheet.paths import default_agent
 
-ROOT = Path(__file__).resolve().parent.parent
-CONFIG = ROOT / "agent.yaml"
+CONFIG = default_agent()
 
 
 async def main(config: Path = CONFIG) -> int:

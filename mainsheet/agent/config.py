@@ -2,6 +2,7 @@
 import hashlib
 import importlib
 import json
+import os
 from pathlib import Path
 from typing import Literal
 
@@ -9,11 +10,13 @@ import yaml
 from claude_agent_sdk import ClaudeAgentOptions
 from pydantic import BaseModel, Field
 
-from agent.policy import Policy
+from mainsheet.agent.policy import Policy
 
 Model = Literal[
     "claude-fable-5-1",
+    "claude-opus-5-5",
     "claude-opus-5",
+    "claude-sonnet-5-5",
     "claude-sonnet-5",
     "claude-haiku-4-5-20251001",
 ]
@@ -54,6 +57,26 @@ def save(cfg: AgentConfig, path: Path) -> None:
 def digest(cfg: AgentConfig) -> str:
     """Fingerprint of the whole definition: any change to it, with or without a new policy version, changes this."""
     return "sha256:" + hashlib.sha256(json.dumps(cfg.model_dump(), sort_keys=True).encode()).hexdigest()
+
+
+# What the harness authenticates with, in the order it looks. A stored login is what is left
+# when none of these is set.
+CREDENTIALS = [
+    ("CLAUDE_CODE_USE_BEDROCK", "Amazon Bedrock"),
+    ("CLAUDE_CODE_USE_VERTEX", "Google Vertex AI"),
+    ("CLAUDE_CODE_USE_FOUNDRY", "Microsoft Foundry"),
+    ("ANTHROPIC_AUTH_TOKEN", "bearer token"),
+    ("ANTHROPIC_API_KEY", "API key"),
+    ("CLAUDE_CODE_OAUTH_TOKEN", "long-lived subscription token"),
+]
+
+
+def credential() -> str:
+    """Name the credential a run will bill to, from the environment alone. Never the value."""
+    for variable, label in CREDENTIALS:
+        if os.environ.get(variable):
+            return f"{label} ({variable})"
+    return "stored Claude login"
 
 
 def preflight(cfg: AgentConfig) -> None:

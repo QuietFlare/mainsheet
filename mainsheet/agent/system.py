@@ -5,12 +5,11 @@ from typing import Literal
 import yaml
 from pydantic import BaseModel, Field, model_validator
 
-from agent.config import AgentConfig, load, save
+from mainsheet.agent.config import AgentConfig, load, save
+from mainsheet.paths import HOME, TEMPLATE
 
-ROOT = Path(__file__).resolve().parent.parent
-SYSTEM = ROOT / "system.yaml"
-AGENTS = ROOT / "agents"
-TEMPLATE = ROOT / "agent.yaml"
+SYSTEM = HOME / "system.yaml"
+AGENTS = HOME / "agents"
 
 
 class AgentRef(BaseModel):

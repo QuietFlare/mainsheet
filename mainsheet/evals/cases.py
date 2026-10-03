@@ -4,8 +4,8 @@ from pathlib import Path
 import yaml
 from pydantic import BaseModel, Field
 
-ROOT = Path(__file__).resolve().parent.parent
-TAXONOMY = ROOT / "evals" / "taxonomy.yaml"
+from mainsheet.paths import TAXONOMY
+
 
 
 class Category(BaseModel):

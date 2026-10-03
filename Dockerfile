@@ -10,7 +10,7 @@ RUN npm install -g @anthropic-ai/claude-code
 RUN python3 -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
-# Mainsheet writes instances/ next to its own code, so the code sits inside the working directory.
+# Mainsheet writes instances/ and trail/ in the folder it is run from, which is the working directory.
 COPY --chown=node:node . /home/node/mainsheet
 RUN pip install --no-cache-dir -e /home/node/mainsheet
 # OpenShell starts the shell with its own PATH, so the commands go where that PATH looks.

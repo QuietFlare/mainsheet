@@ -17,8 +17,10 @@ The mainsheet is the line a sailor holds to keep the sail under control.
 uv venv && source .venv/bin/activate && uv pip install -e ".[dev]"
 ```
 
-Python 3.11 or later. The model is reached through the Claude Agent SDK, which
-uses your Claude login locally and an API key or cloud endpoint when deployed.
+Python 3.11 or later. The model is reached through the Claude Agent SDK. Set
+`ANTHROPIC_API_KEY` to bill a run to the API. With no key set, the SDK uses a
+stored Claude login, which is for your own local runs. Each run prints the
+credential it found before the first model call.
 
 ## Run
 
@@ -30,6 +32,10 @@ mainsheet-evals-propose   # propose an eval suite for agent.yaml, one case per m
 mainsheet-evals evals/suites/mainsheet.yaml
 pytest                    # unit tests for the gate and the eval tooling
 ```
+
+Mainsheet writes `instances/`, `trail/`, `agents/` and `system.yaml` in the
+folder you run it from. Set `MAINSHEET_HOME` to use another folder. With no
+`agent.yaml` there, `mainsheet` runs the example that ships with the package.
 
 Optional viewer for traces: `docker run -d -p 6006:6006 arizephoenix/phoenix`
 and open http://localhost:6006.
@@ -47,7 +53,7 @@ tools:
   builtin: []
   servers:
     notes:
-      module: agent.tools.notes
+      module: mainsheet.agent.tools.notes
       allow: [notes_read, notes_write]
 policy:
   version: 1
@@ -86,7 +92,7 @@ One schema validates this file, the panel's API and the panel's form.
 
 ## Evals
 
-`evals/taxonomy.yaml` lists the misalignment categories every agent must be
+`mainsheet/evals/taxonomy.yaml` lists the misalignment categories every agent must be
 tested against. The generator writes one case per category for a given agent,
 with fixtures its tool adapters can plant and assertions on behaviour, output
 and quality. Cases are proposals: a person reads, edits and commits them. Each
@@ -97,12 +103,14 @@ is a diff between two rows.
 ## Layout
 
 ```
-agent/        runtime: config, policy gate, instances, events, telemetry, tools
-panel/        FastAPI panel and the React Flow canvas
-evals/        taxonomy, case schema, generator, runner
-tests/        unit tests
-docs/         practices and the product proposal
-agent.yaml    the example agent
+mainsheet/agent/        runtime: config, policy gate, instances, events, evidence, tools
+mainsheet/panel/        FastAPI panel and the React Flow canvas
+mainsheet/evals/        taxonomy, case schema, generator, runner
+mainsheet/agent.yaml    the example agent
+mainsheet/paths.py      the working folder and the shipped files
+evals/suites/           eval suites for the example agents
+tests/                  unit tests
+docs/                   practices and the product proposal
 ```
 
 ## Status

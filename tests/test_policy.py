@@ -1,4 +1,4 @@
-from agent.policy import Gate, Policy
+from mainsheet.agent.policy import Gate, Policy
 
 
 def policy(**tools) -> Policy:

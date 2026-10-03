@@ -1,13 +1,16 @@
 """Evidence: every decision leaves a record that verifies, and a changed record does not."""
 import json
+from pathlib import Path
 
 import pytest
 
-from agent.config import digest, load
-from agent.events import EventLog
-from agent.evidence import ROOT, Evidence, history, receipt_path, verify
-from agent.policy import Decision
-from agent.runtime import Registry
+from mainsheet.agent.config import digest, load
+from mainsheet.agent.events import EventLog
+from mainsheet.agent.evidence import Evidence, history, receipt_path, verify
+from mainsheet.agent.policy import Decision
+from mainsheet.agent.runtime import Registry
+
+ROOT = Path(__file__).resolve().parent.parent
 
 ALLOW = Decision(allow=True, rule="allowed")
 DENY = Decision(allow=False, rule="arg:title", severity="medium", reason="title must match '^Standup'")
