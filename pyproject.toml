@@ -11,6 +11,7 @@ dependencies = [
   "pyyaml",
   "fastapi",
   "uvicorn",
+  "vaara>=2.4",
 ]
 
 [project.optional-dependencies]
@@ -19,6 +20,7 @@ dev = ["pytest"]
 [project.scripts]
 mainsheet = "agent.main:cli"
 mainsheet-panel = "panel.app:cli"
+mainsheet-verify = "agent.evidence:cli"
 mainsheet-evals = "evals.run:cli"
 mainsheet-evals-propose = "evals.generate:cli"
 

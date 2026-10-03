@@ -1,5 +1,7 @@
 """Load and validate an agent definition, and build the SDK options for one instance of it."""
+import hashlib
 import importlib
+import json
 from pathlib import Path
 from typing import Literal
 
@@ -47,6 +49,11 @@ def load(path: Path) -> AgentConfig:
 def save(cfg: AgentConfig, path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(yaml.safe_dump(cfg.model_dump(), sort_keys=False, allow_unicode=True))
+
+
+def digest(cfg: AgentConfig) -> str:
+    """Fingerprint of the whole definition: any change to it, with or without a new policy version, changes this."""
+    return "sha256:" + hashlib.sha256(json.dumps(cfg.model_dump(), sort_keys=True).encode()).hexdigest()
 
 
 def preflight(cfg: AgentConfig) -> None:

@@ -1,0 +1,10 @@
+.git/
+.venv/
+.claude/
+.pytest_cache/
+__pycache__/
+*.egg-info/
+instances/
+trail/
+docs/
+system.yaml

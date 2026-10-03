@@ -18,8 +18,9 @@ from claude_agent_sdk import (
 )
 from opentelemetry import trace
 
-from agent.config import AgentConfig, build_options, preflight
+from agent.config import AgentConfig, build_options, digest, preflight
 from agent.events import EventLog
+from agent.evidence import TRAIL, Evidence
 from agent.policy import Decision, Gate, args_digest, make_hooks
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -41,6 +42,7 @@ class Instance:
     principal: str
     root: Path
     log: EventLog
+    evidence: Evidence
     status: Status = Status.created
     created_at: float = field(default_factory=time.time)
     task: asyncio.Task | None = None
@@ -59,9 +61,15 @@ class Instance:
         }
 
     def record_decision(self, tool: str, tool_input: dict, decision: Decision) -> None:
-        """Every gate decision is an event; every denial is also an incident."""
+        """Every gate decision is an event and a signed record; every denial is also an incident."""
+        evidence = self.evidence.record(self.cfg.name, self.id, self.cfg.policy.version, tool, tool_input, decision)
         self.log.emit("policy.decision", tool=tool, rule=decision.rule, allow=decision.allow,
-                      args_digest=args_digest(tool_input))
+                      args_digest=args_digest(tool_input), evidence=evidence)
+        if evidence is None:
+            self.incidents += 1
+            self.log.emit("incident", severity="high", rule="evidence:no_receipt", tool=tool,
+                          reason="the decision was made and no signed receipt was written for it",
+                          args_digest=args_digest(tool_input), policy_version=self.cfg.policy.version)
         if not decision.allow:
             self.incidents += 1
             self.log.emit("incident", severity=decision.severity, rule=decision.rule, tool=tool,
@@ -72,15 +80,19 @@ class Instance:
 class Registry:
     """Live table of instances. Everything the panel and the CLI do goes through here."""
 
-    def __init__(self, base: Path = INSTANCES) -> None:
+    def __init__(self, base: Path = INSTANCES, trail: Path = TRAIL) -> None:
         self.base = base
+        self.evidence = Evidence(trail)
         self.instances: dict[str, Instance] = {}
 
     def create(self, cfg: AgentConfig, principal: str = "local") -> Instance:
         iid = f"{cfg.name}-{uuid.uuid4().hex[:8]}"
         root = self.base / iid
         (root / "work").mkdir(parents=True, exist_ok=True)
-        inst = Instance(iid, cfg, principal, root, EventLog(root / "events.jsonl", iid))
+        inst = Instance(iid, cfg, principal, root, EventLog(root / "events.jsonl", iid), self.evidence)
+        inst.log.emit("instance.created", definition=digest(cfg), principal=principal)
+        self.evidence.lifecycle(iid, "instance.create", agent=cfg.name, definition=digest(cfg),
+                                policy_version=cfg.policy.version, model=cfg.model, principal=principal)
         self.instances[iid] = inst
         return inst
 
@@ -95,6 +107,7 @@ class Registry:
         if inst.status is Status.running:
             return inst
         inst.status = Status.running
+        self.evidence.lifecycle(iid, "run.start")
         inst.task = asyncio.create_task(self._run(inst))
         return inst
 
@@ -108,6 +121,8 @@ class Registry:
         inst = self.get(iid)
         if inst.status is Status.running:
             raise RuntimeError("stop the instance before deleting it")
+        # The folder and its event log go; this record in the chain stays.
+        self.evidence.lifecycle(iid, "instance.delete", status=inst.status.value)
         shutil.rmtree(inst.root, ignore_errors=True)
         del self.instances[iid]
 
@@ -126,6 +141,8 @@ class Registry:
             inst.status = Status.failed
             inst.error = str(exc) or repr(exc)
             inst.log.emit("run.failed", error=inst.error)
+        self.evidence.lifecycle(inst.id, "run.end", status=inst.status.value, turns=inst.turns,
+                                cost_usd=inst.cost_usd, incidents=inst.incidents, error=inst.error)
 
 
 async def run_loop(inst: Instance) -> None:

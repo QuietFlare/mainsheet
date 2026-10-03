@@ -24,6 +24,7 @@ uses your Claude login locally and an API key or cloud endpoint when deployed.
 
 ```bash
 mainsheet                 # run agent.yaml once, print each step, write trail/events.jsonl
+mainsheet-verify <id>     # check the signed record of every gate decision in the run instances/<id>
 mainsheet-panel           # canvas at http://127.0.0.1:8765: create, configure, connect, run, watch
 mainsheet-evals-propose   # propose an eval suite for agent.yaml, one case per misalignment category
 mainsheet-evals evals/suites/mainsheet.yaml

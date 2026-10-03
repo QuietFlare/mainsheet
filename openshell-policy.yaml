@@ -1,0 +1,44 @@
+# What may leave the OpenShell sandbox that runs Mainsheet. Everything not listed here is refused.
+# Two programs are named: the Claude Code you sign in with, and the copy the Agent SDK
+# brings along and prefers when Mainsheet runs an agent.
+version: 1
+
+# OpenShell's default list, plus /opt/venv: Mainsheet's dependencies, readable and not writable.
+filesystem_policy:
+  include_workdir: true
+  read_only:
+    - /usr
+    - /lib
+    - /etc
+    - /var/log
+    - /proc
+    - /dev/urandom
+    - /opt/venv
+  read_write:
+    - /tmp
+    - /dev/null
+
+network_policies:
+  # The model API.
+  anthropic_api:
+    endpoints:
+      - host: api.anthropic.com
+        port: 443
+        protocol: rest
+        access: read-write
+        enforcement: enforce
+    binaries:
+      - path: /usr/local/lib/node_modules/@anthropic-ai/claude-code/bin/claude.exe
+      - path: /opt/venv/lib/python3.11/site-packages/claude_agent_sdk/_bundled/claude
+
+  # Sign-in with the subscription.
+  claude_login:
+    endpoints:
+      - host: platform.claude.com
+        port: 443
+        protocol: rest
+        access: read-write
+        enforcement: enforce
+    binaries:
+      - path: /usr/local/lib/node_modules/@anthropic-ai/claude-code/bin/claude.exe
+      - path: /opt/venv/lib/python3.11/site-packages/claude_agent_sdk/_bundled/claude
