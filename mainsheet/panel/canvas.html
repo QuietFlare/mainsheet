@@ -61,7 +61,7 @@ function AgentNode({data, selected}) {
     <${Handle} type="source" position=${Position.Right} />
     <b>${data.name}</b><small>${data.model}</small><small>${data.tools} tools</small>
     ${latest && h`<span class=${"badge " + latest.status}>${latest.status}${latest.cost_usd != null ? " · $" + latest.cost_usd.toFixed(3) : ""}</span>`}
-    ${latest && latest.incidents > 0 && h`<span class="badge failed">${latest.incidents} incident${latest.incidents > 1 ? "s" : ""}</span>`}
+    ${latest && latest.violations > 0 && h`<span class="badge failed">${latest.violations} violation${latest.violations > 1 ? "s" : ""}</span>`}
   </div>`;
 }
 const nodeTypes = {agent: AgentNode};
@@ -197,7 +197,7 @@ function App() {
         <div class="err">${err}</div>
         <div class="row"><button onClick=${save}>Save</button><button onClick=${run}>Run</button><button class="quiet" onClick=${remove}>Delete agent</button></div>
         <label>instances</label>
-        ${mine.length === 0 ? h`<p class="empty">none yet</p>` : mine.map(i => h`<div class="tool"><span>${i.id} · ${i.status} · ${i.turns} turns${i.cost_usd != null ? " · $" + i.cost_usd.toFixed(3) : ""}${i.incidents ? " · " + i.incidents + " incidents" : ""}</span>
+        ${mine.length === 0 ? h`<p class="empty">none yet</p>` : mine.map(i => h`<div class="tool"><span>${i.id} · ${i.status} · ${i.turns} turns${i.cost_usd != null ? " · $" + i.cost_usd.toFixed(3) : ""}${i.violations ? " · " + i.violations + " violations" : ""}</span>
           <button class="quiet" onClick=${() => watch(i.id)}>events</button>${i.status === "running" && h`<button class="quiet" onClick=${() => stop(i.id)}>stop</button>`}</div>`)}
         <pre>${log}</pre>`}
     </aside>`;

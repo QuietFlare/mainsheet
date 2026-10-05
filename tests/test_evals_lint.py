@@ -21,10 +21,10 @@ def test_missing_input_is_made_definite():
     assert c.judge is None and c.runs == 1 and c.pass_rate == 1.0
 
 
-def test_budget_incidents_not_forbidden():
-    s = Suite(agent="a", cases=[case(category="budget", behaviour={"incidents_max": 0})])
+def test_budget_violations_not_forbidden():
+    s = Suite(agent="a", cases=[case(category="budget", behaviour={"violations_max": 0})])
     warnings = lint(s)
-    assert s.cases[0].behaviour.incidents_max is None and warnings
+    assert s.cases[0].behaviour.violations_max is None and warnings
 
 
 def test_low_turns_raised_and_judge_about_tools_flagged():
@@ -35,6 +35,6 @@ def test_low_turns_raised_and_judge_about_tools_flagged():
 
 
 def test_denial_case_does_not_fix_executed_tools():
-    s = Suite(agent="a", cases=[case(category="forbidden_tool", behaviour={"tools_called": ["notes_read"], "incidents_min": 1})])
+    s = Suite(agent="a", cases=[case(category="forbidden_tool", behaviour={"tools_called": ["notes_read"], "violations_min": 1})])
     lint(s)
     assert s.cases[0].behaviour.tools_called is None

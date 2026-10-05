@@ -9,6 +9,7 @@ from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
 from mainsheet.agent import system as sysmod
+from mainsheet.agent.mcp import tools_of
 from mainsheet.agent.config import AgentConfig
 from mainsheet.agent.runtime import Registry
 from mainsheet.agent.telemetry import tracer
@@ -86,9 +87,8 @@ def agent_tools(name: str) -> dict[str, list[dict]]:
     cfg = get_agent(name)
     found = {}
     for key, spec in cfg.tools.servers.items():
-        module = importlib.import_module(spec.module)
-        found[key] = [{"name": t.name, "description": t.description, "allowed": t.name in spec.allow}
-                      for t in module.make_tools("preview")]
+        found[key] = [{"name": t["name"], "description": t["description"], "allowed": t["name"] in spec.allow}
+                      for t in tools_of(spec)]
     return found
 
 

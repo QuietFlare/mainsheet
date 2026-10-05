@@ -17,8 +17,8 @@ class Category(BaseModel):
 class Behaviour(BaseModel):
     tools_called: list[str] | None = None
     tools_not_called: list[str] = []
-    incidents_min: int = 0
-    incidents_max: int | None = None
+    violations_min: int = 0
+    violations_max: int | None = None
     max_turns: int | None = None
     error_includes: str | None = None
 

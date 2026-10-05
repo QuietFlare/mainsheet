@@ -3,12 +3,14 @@ import hashlib
 import importlib
 import json
 import os
+import re
+import sys
 from pathlib import Path
 from typing import Literal
 
 import yaml
 from claude_agent_sdk import ClaudeAgentOptions
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from mainsheet.agent.policy import Policy
 
@@ -23,8 +25,42 @@ Model = Literal[
 
 
 class ServerConfig(BaseModel):
-    module: str
+    """Where a server's tools come from: a Python module Mainsheet imports, or a program it starts and speaks MCP to."""
+    module: str | None = None
+    command: str | None = None
+    args: list[str] = []
+    env: dict[str, str] = {}
     allow: list[str] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def one_source(self) -> "ServerConfig":
+        if bool(self.module) == bool(self.command):
+            raise ValueError("a server names either a module or a command, not both and not neither")
+        return self
+
+
+VARIABLE = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-([^}]*))?\}")
+
+
+def expanded(text: str) -> str:
+    """${NAME} from the environment, ${NAME:-default} when it may be unset. MAINSHEET_PYTHON is this interpreter."""
+    values = {**os.environ, "MAINSHEET_PYTHON": sys.executable}
+
+    def one(found: re.Match) -> str:
+        name, default = found.group(1), found.group(2)
+        if name in values:
+            return values[name]
+        if default is not None:
+            return default
+        raise ValueError(f"{name} is not set, and the definition gives it no default")
+    return VARIABLE.sub(one, text)
+
+
+def stdio(spec: ServerConfig) -> dict:
+    """The SDK's description of a server started by command. An env entry that expands to nothing is left out."""
+    env = {name: expanded(value) for name, value in spec.env.items()}
+    return {"type": "stdio", "command": expanded(spec.command), "args": [expanded(a) for a in spec.args],
+            "env": {name: value for name, value in env.items() if value}}
 
 
 class ToolsConfig(BaseModel):
@@ -82,7 +118,7 @@ def credential() -> str:
 def preflight(cfg: AgentConfig) -> None:
     """Run every tool module's preflight, if it has one, before any model call."""
     for spec in cfg.tools.servers.values():
-        check = getattr(importlib.import_module(spec.module), "preflight", None)
+        check = getattr(importlib.import_module(spec.module), "preflight", None) if spec.module else None
         if check:
             check(cfg.name)
 
@@ -102,7 +138,8 @@ def build_options(cfg: AgentConfig, cwd: Path, hooks: dict | None = None) -> Cla
     servers = {}
     allowed = list(cfg.tools.builtin)
     for key, spec in cfg.tools.servers.items():
-        servers[key] = importlib.import_module(spec.module).make_server(cfg.name)
+        servers[key] = stdio(spec) if spec.command else \
+            importlib.import_module(spec.module).make_server(cfg.name)
         allowed += [f"mcp__{key}__{name}" for name in spec.allow]
     return ClaudeAgentOptions(
         cwd=str(cwd),

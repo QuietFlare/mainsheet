@@ -62,7 +62,7 @@ The policy table is enforced by a PreToolUse hook. The model is asked what it
 wants, never whether it may. A denial stays in force for the run.
 Applied in `mainsheet/agent/policy.py`.
 
-## Every refusal is an incident
+## Every refusal is a violation
 
 Denials carry severity, rule, tool, argument digest and policy version, and are
 counted on the instance. Applied in `mainsheet/agent/runtime.py`, `record_decision()`.
@@ -111,5 +111,5 @@ A rule the gate applies can be argued with or retried; a closed socket cannot.
 The policy's `network.allow` list is handed to the harness sandbox, which
 denies every other host to every command the agent runs. Empty means none.
 The gate never sees a socket; it sees the sandbox's violation report in the
-tool result and records it as a critical incident. Applied in
+tool result and records it as a critical violation. Applied in
 `mainsheet/agent/config.py`, `sandbox_settings()`, and `mainsheet/agent/policy.py`, `Gate.post()`.

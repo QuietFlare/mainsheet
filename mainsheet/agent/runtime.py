@@ -50,29 +50,29 @@ class Instance:
     error: str | None = None
     turns: int = 0
     cost_usd: float | None = None
-    incidents: int = 0
+    violations: int = 0
 
     def summary(self) -> dict:
         return {
             "id": self.id, "name": self.cfg.name, "principal": self.principal,
             "status": self.status.value, "created_at": self.created_at,
-            "turns": self.turns, "cost_usd": self.cost_usd, "incidents": self.incidents,
+            "turns": self.turns, "cost_usd": self.cost_usd, "violations": self.violations,
             "result": self.result, "error": self.error,
         }
 
     def record_decision(self, tool: str, tool_input: dict, decision: Decision) -> None:
-        """Every gate decision is an event and a signed record; every denial is also an incident."""
+        """Every gate decision is an event and a signed record; every denial is also a violation."""
         evidence = self.evidence.record(self.cfg.name, self.id, self.cfg.policy.version, tool, tool_input, decision)
         self.log.emit("policy.decision", tool=tool, rule=decision.rule, allow=decision.allow,
                       args_digest=args_digest(tool_input), evidence=evidence)
         if evidence is None:
-            self.incidents += 1
-            self.log.emit("incident", severity="high", rule="evidence:no_receipt", tool=tool,
+            self.violations += 1
+            self.log.emit("violation", severity="high", rule="evidence:no_receipt", tool=tool,
                           reason="the decision was made and no signed receipt was written for it",
                           args_digest=args_digest(tool_input), policy_version=self.cfg.policy.version)
         if not decision.allow:
-            self.incidents += 1
-            self.log.emit("incident", severity=decision.severity, rule=decision.rule, tool=tool,
+            self.violations += 1
+            self.log.emit("violation", severity=decision.severity, rule=decision.rule, tool=tool,
                           reason=decision.reason, args_digest=args_digest(tool_input),
                           policy_version=self.cfg.policy.version)
 
@@ -142,7 +142,7 @@ class Registry:
             inst.error = str(exc) or repr(exc)
             inst.log.emit("run.failed", error=inst.error)
         self.evidence.lifecycle(inst.id, "run.end", status=inst.status.value, turns=inst.turns,
-                                cost_usd=inst.cost_usd, incidents=inst.incidents, error=inst.error)
+                                cost_usd=inst.cost_usd, violations=inst.violations, error=inst.error)
 
 
 async def run_loop(inst: Instance) -> None:
@@ -190,8 +190,8 @@ async def run_loop(inst: Instance) -> None:
                 inst.cost_usd = getattr(message, "total_cost_usd", None)
                 inst.result = message.result
                 if inst.cost_usd is not None and inst.cost_usd > cfg.policy.budgets.max_cost_usd:
-                    inst.incidents += 1
-                    log.emit("incident", severity="medium", rule="budget:cost_usd", tool="",
+                    inst.violations += 1
+                    log.emit("violation", severity="medium", rule="budget:cost_usd", tool="",
                              reason=f"run cost {inst.cost_usd:.4f} exceeded {cfg.policy.budgets.max_cost_usd}",
                              policy_version=cfg.policy.version)
                 usage = getattr(message, "usage", None) or {}

@@ -5,7 +5,7 @@ An agents runtime: define an agent in one file, run it governed, prove what it d
 Mainsheet executes agent definitions with the guarantees agents need. A policy
 gate decides before every tool call, in code the model never sees. Budgets cap
 turns, calls, time and cost. Every step is an event on disk and a span in your
-tracing backend. Every refusal is an incident. A generated, reviewed eval suite
+tracing backend. Every refusal is a violation. A generated, reviewed eval suite
 says how the agent behaves under injection, contradiction, missing input,
 sensitive data, scope creep and forbidden tools.
 
@@ -69,6 +69,11 @@ policy:
 
 One schema validates this file, the panel's API and the panel's form.
 
+A server may also be a program Mainsheet starts and speaks MCP to, in
+place of a module: `command: ${MAINSHEET_PYTHON}` with `args:` and
+`env:`. `${NAME}` expands from the environment, `${NAME:-}` may be unset,
+and `MAINSHEET_PYTHON` is the interpreter running Mainsheet.
+
 ## What the runtime guarantees
 
 - **Tools are bound to one agent when built.** A tool module exposes
@@ -81,9 +86,9 @@ One schema validates this file, the panel's API and the panel's form.
 - **Commands cannot reach the network unless the policy says so.** Every
   command the agent runs is sandboxed by the harness (Seatbelt on macOS,
   bubblewrap on Linux) with egress limited to `policy.network.allow`, empty
-  by default. A blocked connection is a `sandbox:network` incident. In-process
+  by default. A blocked connection is a `sandbox:network` violation. In-process
   tool modules are operator code and are not sandboxed.
-- **Every decision is recorded.** `policy.decision` for all, `incident` for
+- **Every decision is recorded.** `policy.decision` for all, `violation` for
   refusals, with severity, rule, tool, argument digest and policy version.
 - **Instances have a lifecycle.** Created, running, finished, failed,
   cancelled, with a root directory, an event log and a timeout each.

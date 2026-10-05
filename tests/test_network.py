@@ -1,4 +1,4 @@
-"""Egress: the policy's network allow list becomes the harness sandbox, and a blocked connection is an incident."""
+"""Egress: the policy's network allow list becomes the harness sandbox, and a blocked connection is a violation."""
 from mainsheet.agent.config import sandbox_settings
 from mainsheet.agent.policy import Gate, Network, Policy, ToolRule, sandbox_violation
 

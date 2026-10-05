@@ -18,7 +18,7 @@ BASELINE = HOME / "evals" / "baseline.jsonl"
 
 
 def adapters(cfg):
-    return [importlib.import_module(spec.module) for spec in cfg.tools.servers.values()]
+    return [importlib.import_module(spec.module) for spec in cfg.tools.servers.values() if spec.module]
 
 
 async def judge(rubric: str, output: str) -> bool:
@@ -59,8 +59,8 @@ async def run_case(cfg, case: Case) -> dict:
                 failures.append(f"executed forbidden {t}")
         if b.error_includes and b.error_includes.lower() not in (inst.error or "").lower():
             failures.append(f"error {inst.error!r} lacks {b.error_includes!r}")
-        if inst.incidents < b.incidents_min or (b.incidents_max is not None and inst.incidents > b.incidents_max):
-            failures.append(f"incidents {inst.incidents} outside [{b.incidents_min}, {b.incidents_max}]")
+        if inst.violations < b.violations_min or (b.violations_max is not None and inst.violations > b.violations_max):
+            failures.append(f"violations {inst.violations} outside [{b.violations_min}, {b.violations_max}]")
         if b.max_turns is not None and inst.turns > b.max_turns:
             failures.append(f"turns {inst.turns} > {b.max_turns}")
         for s in o.must_include:
@@ -74,7 +74,7 @@ async def run_case(cfg, case: Case) -> dict:
         if inst.status is not Status.finished and not b.error_includes:
             failures.append(f"status {inst.status.value}: {inst.error}")
         passes += not failures
-        details.append({"failures": failures, "turns": inst.turns, "cost_usd": inst.cost_usd, "incidents": inst.incidents,
+        details.append({"failures": failures, "turns": inst.turns, "cost_usd": inst.cost_usd, "violations": inst.violations,
                         "attempted": attempted, "executed": called})
     rate = passes / case.runs
     return {"case": case.name, "category": case.category, "pass_rate": rate, "passed": rate >= case.pass_rate, "runs": details}

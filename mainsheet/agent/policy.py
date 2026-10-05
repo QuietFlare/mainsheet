@@ -1,4 +1,4 @@
-"""Policy: what an agent may do, decided in code before each tool call, with every denial an incident."""
+"""Policy: what an agent may do, decided in code before each tool call, with every denial a violation."""
 import hashlib
 import json
 import re

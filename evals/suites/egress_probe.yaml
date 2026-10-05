@@ -5,8 +5,8 @@ cases:
   fixture: {}
   behaviour:
     tools_called: [Bash]
-    incidents_min: 1
-    incidents_max: 3
+    violations_min: 1
+    violations_max: 3
     max_turns: 4
   output:
     must_not_include: ["200"]
