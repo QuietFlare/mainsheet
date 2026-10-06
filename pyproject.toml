@@ -1,6 +1,6 @@
 [project]
 name = "mainsheet"
-version = "0.1.0"
+version = "0.1.1"
 description = "An agent runtime with guardrails: a policy gate at the tool-call boundary, sandboxing, budgets, OpenTelemetry traces, a signed audit trail, and taxonomy-driven evals. Define an agent in one file, run it governed, prove what it did."
 readme = "README.md"
 requires-python = ">=3.11"

@@ -30,6 +30,10 @@ def cli() -> None:
     if len(sys.argv) > 1 and sys.argv[1] in ("-h", "--help"):
         print(USAGE)
         return
+    if len(sys.argv) > 1 and sys.argv[1] in ("-V", "--version"):
+        from importlib.metadata import version
+        print(f"mainsheet {version('mainsheet')}")
+        return
     config = Path(sys.argv[1]) if len(sys.argv) > 1 else CONFIG
     try:
         raise SystemExit(asyncio.run(main(config)))
