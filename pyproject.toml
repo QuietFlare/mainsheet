@@ -1,12 +1,12 @@
 [project]
 name = "mainsheet"
 version = "0.1.0"
-description = "A governed, evidenced agent reference"
+description = "An agent runtime with guardrails: a policy gate at the tool-call boundary, sandboxing, budgets, OpenTelemetry traces, a signed audit trail, and taxonomy-driven evals. Define an agent in one file, run it governed, prove what it did."
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "AGPL-3.0-or-later" }
 authors = [{ name = "QuietFlare" }]
-keywords = ["agents", "policy", "governance", "audit", "evals", "mcp"]
+keywords = ["agents", "agent-runtime", "agent-harness", "guardrails", "policy", "governance", "sandboxing", "audit-trail", "observability", "opentelemetry", "evals", "mcp", "human-in-the-loop", "llm-security", "claude-agent-sdk"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",

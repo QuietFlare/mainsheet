@@ -13,6 +13,18 @@ a person can verify later. An eval suite, generated and then reviewed by
 a person, says how the agent behaves under injection, contradiction,
 missing input, scope creep and forbidden tools.
 
+In the field's terms: Mainsheet is an agent runtime and harness built on
+the Claude Agent SDK's agent loop. Guardrails are a policy gate enforced
+at the tool-call boundary through PreToolUse and PostToolUse hooks, with
+argument validation, deny patterns, taint tracking from untrusted output
+to irreversible actions, and a human-in-the-loop approval rule. Tool
+calls run under OS-level sandboxing with egress control. Cost and rate
+budgets bound each run. Observability is an event log plus OpenTelemetry
+spans, and the audit trail is a chain of signed decision receipts. Tools
+arrive as MCP servers, in-process or started by command. Evals are
+taxonomy-driven, generated per agent, reviewed by a person and tracked
+against a baseline per model and policy version.
+
 The mainsheet is the line a sailor holds to keep the sail under control.
 
 ## Install
@@ -144,7 +156,7 @@ a form, run them and watch instances. For traces, run
 `docker run -d -p 6006:6006 arizephoenix/phoenix` and open
 http://localhost:6006.
 
-## What the runtime guarantees
+## Guardrails, observability and audit: what the runtime guarantees
 
 - **The gate runs before every call.** Unknown tool, disallowed tool, an
   argument outside its pattern, a deny pattern match, a budget reached,
