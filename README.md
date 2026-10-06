@@ -1,13 +1,17 @@
 # Mainsheet
 
-An agents runtime: define an agent in one file, run it governed, prove what it did.
+Define an agent in one file, run it under a policy, and keep a signed
+record of what it did.
 
-Mainsheet executes agent definitions with the guarantees agents need. A policy
-gate decides before every tool call, in code the model never sees. Budgets cap
-turns, calls, time and cost. Every step is an event on disk and a span in your
-tracing backend. Every refusal is a violation. A generated, reviewed eval suite
-says how the agent behaves under injection, contradiction, missing input,
-sensitive data, scope creep and forbidden tools.
+Mainsheet is a runtime for agents that have to answer for themselves. The
+model picks the next tool, and nothing else. A gate written in code
+decides before every call whether that call may run, under rules the
+model never sees. Commands run in a sandbox with no network unless the
+policy opens one. Budgets cap turns, calls, time and cost. Every decision
+is an event on disk, a span in your tracing backend, and a signed receipt
+a person can verify later. An eval suite, generated and then reviewed by
+a person, says how the agent behaves under injection, contradiction,
+missing input, scope creep and forbidden tools.
 
 The mainsheet is the line a sailor holds to keep the sail under control.
 
@@ -17,36 +21,25 @@ The mainsheet is the line a sailor holds to keep the sail under control.
 pip install mainsheet
 ```
 
-To work on it instead:
+Python 3.11 or later. The model is reached through the Claude Agent SDK.
+Set `ANTHROPIC_API_KEY` to bill runs to the API. With no key set, the
+SDK uses a stored Claude login, which is for your own local runs. Each
+run prints the credential it found before the first model call.
+
+To work on Mainsheet itself:
 
 ```bash
 uv venv && source .venv/bin/activate && uv pip install -e ".[dev]"
 ```
 
-Python 3.11 or later. The model is reached through the Claude Agent SDK. Set
-`ANTHROPIC_API_KEY` to bill a run to the API. With no key set, the SDK uses a
-stored Claude login, which is for your own local runs. Each run prints the
-credential it found before the first model call.
+## The flow
 
-## Run
-
-```bash
-mainsheet                 # run agent.yaml once, print each step, write trail/events.jsonl
-mainsheet-verify <id>     # check the signed record of every gate decision in the run instances/<id>
-mainsheet-panel           # canvas at http://127.0.0.1:8765: create, configure, connect, run, watch
-mainsheet-evals-propose   # propose an eval suite for agent.yaml, one case per misalignment category
-mainsheet-evals evals/suites/mainsheet.yaml
-pytest                    # unit tests for the gate and the eval tooling
+```
+agent.yaml --> mainsheet --> instances/<id>/   --> mainsheet-verify <id>
+ define        run           events, work, trail   prove
 ```
 
-Mainsheet writes `instances/`, `trail/`, `agents/` and `system.yaml` in the
-folder you run it from. Set `MAINSHEET_HOME` to use another folder. With no
-`agent.yaml` there, `mainsheet` runs the example that ships with the package.
-
-Optional viewer for traces: `docker run -d -p 6006:6006 arizephoenix/phoenix`
-and open http://localhost:6006.
-
-## An agent
+### 1. Define the agent in one file
 
 ```yaml
 name: standup
@@ -71,65 +64,120 @@ policy:
   deny_patterns:
     - {pattern: "curl .*\\| *(ba)?sh", reason: remote content piped into a shell, severity: critical}
   budgets: {max_tool_calls: 10, max_cost_usd: 0.50}
+  network: {allow: []}
 ```
 
-One schema validates this file, the panel's API and the panel's form.
+The file is the whole agent: the model, the prompt, the task, the tools
+it may call, and the policy on each call. One schema validates it, and
+the panel edits the same schema.
 
-A server may also be a program Mainsheet starts and speaks MCP to, in
-place of a module: `command: ${MAINSHEET_PYTHON}` with `args:` and
-`env:`. `${NAME}` expands from the environment, `${NAME:-}` may be unset,
-and `MAINSHEET_PYTHON` is the interpreter running Mainsheet.
+Tools come from one of two places:
+
+- **A Python module** that exposes `make_server(agent)`, as the notes
+  example above. The tools are bound to one agent when built.
+- **A program Mainsheet starts and speaks MCP to.** Give `command:` and
+  `args:` in place of `module:`, with `env:` for what it needs.
+  `${NAME}` expands from the environment, `${NAME:-}` may be unset, and
+  `${MAINSHEET_PYTHON}` is the interpreter running Mainsheet. This is
+  how [Clew](https://github.com/QuietFlare/clew) gives its agent seven
+  tools without loading any of its code into Mainsheet:
+
+```yaml
+tools:
+  servers:
+    clew:
+      command: ${MAINSHEET_PYTHON}
+      args: [-m, clew, serve, --dir, "${CLEW_AGENT_DIR}"]
+      allow: [clew_inbox, clew_triage, clew_impact, clew_seal]
+```
+
+### 2. Run it
+
+```bash
+mainsheet agent.yaml
+```
+
+Each step prints as it happens: the credential, every tool call with its
+arguments, every refusal with its reason, the model's words, and at the
+end the turns and the cost. Without a file, Mainsheet runs `agent.yaml`
+in the working folder, or the example that ships with the package. The
+example writes Apple Notes, so it runs on macOS only.
+
+A run leaves `instances/<id>/` with the agent's work folder and
+`events.jsonl`, and appends to `trail/`, the signed record. Set
+`MAINSHEET_HOME` to keep these somewhere other than the working folder.
+
+### 3. Prove what it did
+
+```bash
+mainsheet-verify <id>
+```
+
+Every gate decision in the run was written as a signed receipt. `verify`
+checks each one and the chain between them, so a reader who was not
+there can see which calls were allowed, which were refused and why, and
+that nothing was altered afterwards.
+
+### 4. Evaluate it before trusting it
+
+```bash
+mainsheet-evals-propose agent.yaml
+mainsheet-evals evals/suites/<agent>.yaml
+```
+
+`propose` writes one case per misalignment category in
+`mainsheet/evals/taxonomy.yaml`: a fixture the tools can plant, and
+assertions on behaviour, output and quality. The cases are a proposal. A
+person reads, edits and commits them. Each case runs several times and
+passes on a rate, and results append to `evals/baseline.jsonl` with the
+model and policy version, so a change in behaviour is a diff between two
+rows.
+
+### 5. Watch it
+
+```bash
+mainsheet-panel
+```
+
+A canvas at http://127.0.0.1:8765 to create agents, edit their policy in
+a form, run them and watch instances. For traces, run
+`docker run -d -p 6006:6006 arizephoenix/phoenix` and open
+http://localhost:6006.
 
 ## What the runtime guarantees
 
-- **Tools are bound to one agent when built.** A tool module exposes
-  `make_server(agent)`. The Notes tools write only into that agent's folder.
-- **The gate runs before every call.** Unknown tool, disallowed tool, argument
-  outside its pattern, deny pattern match, budget reached, human approval
-  required, or an irreversible tool after untrusted output: each is refused
-  with a reason the model reads. A refused call stays refused; a retry does not
-  get a fresh decision.
+- **The gate runs before every call.** Unknown tool, disallowed tool, an
+  argument outside its pattern, a deny pattern match, a budget reached,
+  human approval required, or an irreversible tool after untrusted
+  output: each is refused with a reason the model reads. A refused call
+  stays refused. A retry gets no fresh decision.
 - **Commands cannot reach the network unless the policy says so.** Every
-  command the agent runs is sandboxed by the harness (Seatbelt on macOS,
-  bubblewrap on Linux) with egress limited to `policy.network.allow`, empty
-  by default. A blocked connection is a `sandbox:network` violation. In-process
-  tool modules are operator code and are not sandboxed.
-- **Every decision is recorded.** `policy.decision` for all, `violation` for
-  refusals, with severity, rule, tool, argument digest and policy version.
-- **Instances have a lifecycle.** Created, running, finished, failed,
-  cancelled, with a root directory, an event log and a timeout each.
-- **Inputs are checked before the model is called.** A missing input fails in
-  milliseconds, not after six turns.
-
-## Evals
-
-`mainsheet/evals/taxonomy.yaml` lists the misalignment categories every agent must be
-tested against. The generator writes one case per category for a given agent,
-with fixtures its tool adapters can plant and assertions on behaviour, output
-and quality. Cases are proposals: a person reads, edits and commits them. Each
-case runs several times and passes on a rate. Results append to
-`evals/baseline.jsonl` with model and policy version, so a change in behaviour
-is a diff between two rows.
-
-## Layout
-
-```
-mainsheet/agent/        runtime: config, policy gate, instances, events, evidence, tools
-mainsheet/panel/        FastAPI panel and the React Flow canvas
-mainsheet/evals/        taxonomy, case schema, generator, runner
-mainsheet/agent.yaml    the example agent
-mainsheet/paths.py      the working folder and the shipped files
-evals/suites/           eval suites for the example agents
-tests/                  unit tests
-docs/                   practices and the product proposal
-```
+  command the agent runs is sandboxed by the harness, Seatbelt on macOS
+  and bubblewrap on Linux, with egress limited to `policy.network.allow`,
+  empty by default. A blocked connection is a `sandbox:network`
+  violation. In-process tool modules are operator code and are not
+  sandboxed.
+- **Every decision is recorded.** `policy.decision` for all, `violation`
+  for refusals, with severity, rule, tool, argument digest and policy
+  version, as an event and as a signed receipt.
+- **Instances have a lifecycle.** Created, running, finished, failed or
+  cancelled, each with a root folder, an event log and a timeout.
+- **Inputs are checked before the model is called.** A tool module may
+  declare a preflight. A missing input fails in milliseconds, not after
+  six turns.
+- **A server by command gets nothing it was not given.** Only the
+  environment entries the definition names reach it, and an entry that
+  expands to nothing is left out.
 
 ## Status
 
-Early. Single machine, in-memory registry, Apple Notes as the example tool.
-See `docs/proposal.md` for where it goes and `docs/practices.md` for the rules
-the code follows.
+Early, and honest about it. One machine, an in-memory registry, and the
+example tools are Apple Notes. What it is used for today: the agents in
+[Clew](https://github.com/QuietFlare/clew), one that handles incident
+reports through `clew serve`, and one that writes provider code under a
+policy that keeps it inside its own folder. `docs/practices.md` holds the
+rules the code follows, and `docs/proposal.md` where it is meant to go.
 
 ## License
 
-AGPL-3.0-or-later.
+[AGPL-3.0-or-later](LICENSE).
