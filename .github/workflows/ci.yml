@@ -1,0 +1,19 @@
+# Mainsheet's tests, on every push and pull request. No model is called.
+
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    uses: QuietFlare/ci-workflows/.github/workflows/python-test.yml@v1
+    with:
+      test-command: 'python -m pip install -e ".[dev]" && python -m pytest -q tests'
+      python-versions: '["3.11", "3.12", "3.13"]'

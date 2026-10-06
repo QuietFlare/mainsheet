@@ -23,7 +23,13 @@ async def main(config: Path = CONFIG) -> int:
     return 0
 
 
+USAGE = "usage: mainsheet [agent.yaml]\n\nRun one instance of the agent the file defines. Without a file: agent.yaml in the working folder, else the example that ships with the package."
+
+
 def cli() -> None:
+    if len(sys.argv) > 1 and sys.argv[1] in ("-h", "--help"):
+        print(USAGE)
+        return
     config = Path(sys.argv[1]) if len(sys.argv) > 1 else CONFIG
     try:
         raise SystemExit(asyncio.run(main(config)))

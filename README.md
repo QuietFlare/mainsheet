@@ -14,6 +14,12 @@ The mainsheet is the line a sailor holds to keep the sail under control.
 ## Install
 
 ```bash
+pip install mainsheet
+```
+
+To work on it instead:
+
+```bash
 uv venv && source .venv/bin/activate && uv pip install -e ".[dev]"
 ```
 
