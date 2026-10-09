@@ -27,7 +27,7 @@ against a baseline per model and policy version.
 
 The mainsheet is the line a sailor holds to keep the sail under control.
 
-![Mainsheet system design](docs/mainsheet_systemdesign.png)
+![Mainsheet system design](docs/mainsheet.png)
 
 ## Install
 
