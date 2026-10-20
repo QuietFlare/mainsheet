@@ -1,5 +1,6 @@
 """Instances: a definition made runnable, with its own root, log, limits and lifecycle."""
 import asyncio
+import json
 import shutil
 import time
 import uuid
@@ -11,6 +12,7 @@ from claude_agent_sdk import (
     AssistantMessage,
     ResultError,
     ResultMessage,
+    SystemMessage,
     TextBlock,
     ToolResultBlock,
     ToolUseBlock,
@@ -22,10 +24,60 @@ from opentelemetry import trace
 from mainsheet.agent.config import AgentConfig, build_options, credential, digest, preflight
 from mainsheet.agent.events import EventLog
 from mainsheet.agent.evidence import TRAIL, Evidence
-from mainsheet.agent.policy import Decision, Gate, args_digest, make_hooks
+from mainsheet.agent.policy import Decision, Gate, args_digest, make_hooks, short_name
 from mainsheet.paths import HOME
 
 INSTANCES = HOME / "instances"
+
+# Where the harness keeps a session's transcript: one folder per working directory, the path
+# with every separator turned into a dash, and one <session id>.jsonl inside it.
+HARNESS_PROJECTS = Path.home() / ".claude" / "projects"
+
+# What a resumed run is told. The restored conversation already holds the task and everything
+# the previous run did; repeating the task would start it over.
+RESUME_PROMPT = "Continue the task from where the previous run stopped. Do not repeat work already done. Then stop."
+
+
+def events_of(root: Path) -> list[dict]:
+    """Every event the instance has logged, oldest first. An instance with no log has none."""
+    path = root / "events.jsonl"
+    if not path.exists():
+        return []
+    return [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
+
+
+def session_of(root: Path, projects: Path = HARNESS_PROJECTS) -> str | None:
+    """The harness session id of the instance's last run.
+
+    Taken from the instance's own log when a run recorded it, else from the harness's transcript
+    folder for the instance's work directory, so runs older than this feature can still be resumed.
+    """
+    recorded = [e["session_id"] for e in events_of(root) if e.get("session_id")]
+    if recorded:
+        return recorded[-1]
+    folder = projects / str((root / "work").resolve()).replace("/", "-")
+    transcripts = sorted(folder.glob("*.jsonl"), key=lambda p: p.stat().st_mtime) if folder.exists() else []
+    return transcripts[-1].stem if transcripts else None
+
+
+def session_cost_of(root: Path) -> float:
+    """What the harness session had cost by the end of the instance's last run, from its log."""
+    for event in reversed(events_of(root)):
+        if event.get("kind") == "run.ended":
+            total = event.get("session_cost_usd", event.get("cost_usd"))
+            return float(total or 0.0)
+    return 0.0
+
+
+def tainted_before(root: Path, policy) -> bool:
+    """Whether any earlier run of this instance consumed untrusted output. Taint carries across runs."""
+    for event in events_of(root):
+        if event.get("kind") != "tool.called":
+            continue
+        rule = policy.tools.get(short_name(event.get("name", "")))
+        if rule and rule.untrusted_output:
+            return True
+    return False
 
 # The harness ends a run with this result subtype when policy.budgets.max_cost_usd is reached.
 # The cap is passed to it in build_options, so the stop happens mid-run, not in a report at the end.
@@ -72,6 +124,9 @@ class Instance:
     turns: int = 0
     cost_usd: float | None = None
     violations: int = 0
+    session_id: str | None = None
+    resume_session: str | None = None  # set when this run continues an earlier one
+    cost_before: float = 0.0  # what the session had cost before this run; the harness reports session totals
 
     def summary(self) -> dict:
         return {
@@ -114,6 +169,27 @@ class Registry:
         inst.log.emit("instance.created", definition=digest(cfg), principal=principal)
         self.evidence.lifecycle(iid, "instance.create", agent=cfg.name, definition=digest(cfg),
                                 policy_version=cfg.policy.version, model=cfg.model, principal=principal)
+        self.instances[iid] = inst
+        return inst
+
+    def reopen(self, iid: str, cfg: AgentConfig, principal: str = "local") -> Instance:
+        """An existing instance made runnable again: same id, same folder, same log, the harness session restored.
+
+        The budget counters start fresh. The taint does not: if an earlier run consumed untrusted
+        output, this run's gate starts tainted.
+        """
+        root = self.base / iid
+        if not (root / "work").is_dir():
+            raise FileNotFoundError(f"no instance {iid} under {self.base}")
+        session = session_of(root)
+        if session is None:
+            raise RuntimeError(f"instance {iid} has no harness session to resume")
+        inst = Instance(iid, cfg, principal, root, EventLog(root / "events.jsonl", iid), self.evidence,
+                        resume_session=session, cost_before=session_cost_of(root))
+        inst.log.emit("instance.resumed", definition=digest(cfg), principal=principal, session_id=session)
+        self.evidence.lifecycle(iid, "instance.resume", agent=cfg.name, definition=digest(cfg),
+                                policy_version=cfg.policy.version, model=cfg.model, principal=principal,
+                                session_id=session)
         self.instances[iid] = inst
         return inst
 
@@ -172,7 +248,11 @@ async def run_loop(inst: Instance) -> None:
     preflight(cfg)
     tr = trace.get_tracer("mainsheet")
     gate = Gate(cfg.policy)
-    options = build_options(cfg, inst.root / "work", hooks=make_hooks(gate, inst.record_decision))
+    if inst.resume_session:
+        gate.tainted = tainted_before(inst.root, cfg.policy)
+    options = build_options(cfg, inst.root / "work", hooks=make_hooks(gate, inst.record_decision),
+                            resume=inst.resume_session)
+    prompt = RESUME_PROMPT if inst.resume_session else cfg.task
     open_tools: dict[str, trace.Span] = {}
     with tr.start_as_current_span("invoke_agent") as run:
         run.set_attribute("gen_ai.operation.name", "invoke_agent")
@@ -182,9 +262,13 @@ async def run_loop(inst: Instance) -> None:
         run.set_attribute("mainsheet.principal", inst.principal)
         billed_to = credential()
         print(f"[{inst.id}] credential: {billed_to}")
-        log.emit("run.started", task=cfg.task, model=cfg.model, principal=inst.principal, credential=billed_to)
-        async for message in messages(cfg.task, options, log):
-            if isinstance(message, AssistantMessage):
+        log.emit("run.started", task=prompt, model=cfg.model, principal=inst.principal, credential=billed_to,
+                 resumed=inst.resume_session, tainted=gate.tainted)
+        async for message in messages(prompt, options, log):
+            if isinstance(message, SystemMessage) and message.subtype == "init":
+                inst.session_id = message.data.get("session_id")
+                log.emit("session", session_id=inst.session_id)
+            elif isinstance(message, AssistantMessage):
                 inst.turns += 1
                 for block in message.content:
                     if isinstance(block, ToolUseBlock):
@@ -208,8 +292,10 @@ async def run_loop(inst: Instance) -> None:
                         span.end()
                         log.emit("tool.returned", id=block.tool_use_id, error=error)
             elif isinstance(message, ResultMessage):
-                inst.cost_usd = getattr(message, "total_cost_usd", None)
+                session_cost = getattr(message, "total_cost_usd", None)
+                inst.cost_usd = None if session_cost is None else round(session_cost - inst.cost_before, 6)
                 inst.result = message.result
+                inst.session_id = getattr(message, "session_id", None) or inst.session_id
                 cap = cfg.policy.budgets.max_cost_usd
                 if stopped_at_cap(message):
                     inst.violations += 1
@@ -226,5 +312,7 @@ async def run_loop(inst: Instance) -> None:
                 run.set_attribute("gen_ai.usage.output_tokens", usage.get("output_tokens", 0))
                 run.set_attribute("mainsheet.cost_usd", inst.cost_usd or 0.0)
                 run.set_attribute("mainsheet.turns", inst.turns)
-                print(f"\n[{inst.id}] result: {message.result}\nturns: {inst.turns}  cost_usd: {inst.cost_usd}")
-                log.emit("run.ended", result=message.result, turns=inst.turns, cost_usd=inst.cost_usd, usage=usage)
+                print(f"\n[{inst.id}] result: {message.result}\nturns: {inst.turns}  cost_usd: {inst.cost_usd}"
+                      + (f"  session_cost_usd: {session_cost}" if inst.resume_session else ""))
+                log.emit("run.ended", result=message.result, turns=inst.turns, cost_usd=inst.cost_usd,
+                         session_cost_usd=session_cost, usage=usage, session_id=inst.session_id)

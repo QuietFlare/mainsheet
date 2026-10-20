@@ -134,7 +134,9 @@ def sandbox_settings(policy: Policy) -> dict:
     }
 
 
-def build_options(cfg: AgentConfig, cwd: Path, hooks: dict | None = None) -> ClaudeAgentOptions:
+def build_options(cfg: AgentConfig, cwd: Path, hooks: dict | None = None,
+                  resume: str | None = None) -> ClaudeAgentOptions:
+    """The harness options for one run. With resume, the harness restores that session's conversation."""
     servers = {}
     allowed = list(cfg.tools.builtin)
     for key, spec in cfg.tools.servers.items():
@@ -150,6 +152,7 @@ def build_options(cfg: AgentConfig, cwd: Path, hooks: dict | None = None) -> Cla
         permission_mode=cfg.permission_mode,
         max_turns=cfg.max_turns,
         max_budget_usd=cfg.policy.budgets.max_cost_usd,
+        resume=resume,
         system_prompt=cfg.system_prompt,
         hooks=hooks or {},
         sandbox=sandbox_settings(cfg.policy),

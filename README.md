@@ -121,6 +121,17 @@ A run leaves `instances/<id>/` with the agent's work folder and
 `events.jsonl`, and appends to `trail/`, the signed record. Set
 `MAINSHEET_HOME` to keep these somewhere other than the working folder.
 
+A run that stopped on a budget continues where it left off:
+
+```bash
+mainsheet agent.yaml --resume <instance id>
+```
+
+Same instance, same folder, same log. The harness restores the
+conversation, the budget counters start fresh, and the gate starts
+tainted if any earlier run of that instance consumed untrusted output.
+The instance id is the folder name under `instances/`.
+
 ### 3. Prove what it did
 
 ```bash
