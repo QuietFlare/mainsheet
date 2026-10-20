@@ -11,3 +11,4 @@ evals/baseline.jsonl
 .pytest_cache/
 .claude/
 !agents/egress_probe.yaml
+bench/results/*.db
