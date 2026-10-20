@@ -149,6 +149,7 @@ def build_options(cfg: AgentConfig, cwd: Path, hooks: dict | None = None) -> Cla
         allowed_tools=allowed,
         permission_mode=cfg.permission_mode,
         max_turns=cfg.max_turns,
+        max_budget_usd=cfg.policy.budgets.max_cost_usd,
         system_prompt=cfg.system_prompt,
         hooks=hooks or {},
         sandbox=sandbox_settings(cfg.policy),

@@ -9,6 +9,7 @@ from pathlib import Path
 
 from claude_agent_sdk import (
     AssistantMessage,
+    ResultError,
     ResultMessage,
     TextBlock,
     ToolResultBlock,
@@ -25,6 +26,26 @@ from mainsheet.agent.policy import Decision, Gate, args_digest, make_hooks
 from mainsheet.paths import HOME
 
 INSTANCES = HOME / "instances"
+
+# The harness ends a run with this result subtype when policy.budgets.max_cost_usd is reached.
+# The cap is passed to it in build_options, so the stop happens mid-run, not in a report at the end.
+BUDGET_STOP = "error_max_budget_usd"
+
+
+def stopped_at_cap(result) -> bool:
+    """True when a result message or a ResultError says the run ended on the cost cap."""
+    return getattr(result, "subtype", None) == BUDGET_STOP
+
+
+async def messages(prompt: str, options, log: EventLog, stream=query):
+    """The harness's messages, one by one. A cost-cap stop ends the stream; any other error result still raises."""
+    try:
+        async for message in stream(prompt=prompt, options=options):
+            yield message
+    except ResultError as exc:
+        if not stopped_at_cap(exc):
+            raise
+        log.emit("run.stopped", rule="budget:cost_usd", reason=exc.result or "")
 
 
 class Status(str, Enum):
@@ -162,7 +183,7 @@ async def run_loop(inst: Instance) -> None:
         billed_to = credential()
         print(f"[{inst.id}] credential: {billed_to}")
         log.emit("run.started", task=cfg.task, model=cfg.model, principal=inst.principal, credential=billed_to)
-        async for message in query(prompt=cfg.task, options=options):
+        async for message in messages(cfg.task, options, log):
             if isinstance(message, AssistantMessage):
                 inst.turns += 1
                 for block in message.content:
@@ -189,10 +210,16 @@ async def run_loop(inst: Instance) -> None:
             elif isinstance(message, ResultMessage):
                 inst.cost_usd = getattr(message, "total_cost_usd", None)
                 inst.result = message.result
-                if inst.cost_usd is not None and inst.cost_usd > cfg.policy.budgets.max_cost_usd:
+                cap = cfg.policy.budgets.max_cost_usd
+                if stopped_at_cap(message):
                     inst.violations += 1
                     log.emit("violation", severity="medium", rule="budget:cost_usd", tool="",
-                             reason=f"run cost {inst.cost_usd:.4f} exceeded {cfg.policy.budgets.max_cost_usd}",
+                             reason=f"run stopped by the harness: cost {inst.cost_usd or 0:.4f} reached the cap of {cap}",
+                             policy_version=cfg.policy.version)
+                elif inst.cost_usd is not None and inst.cost_usd > cap:
+                    inst.violations += 1
+                    log.emit("violation", severity="medium", rule="budget:cost_usd", tool="",
+                             reason=f"run cost {inst.cost_usd:.4f} exceeded {cap} without a harness stop",
                              policy_version=cfg.policy.version)
                 usage = getattr(message, "usage", None) or {}
                 run.set_attribute("gen_ai.usage.input_tokens", usage.get("input_tokens", 0))

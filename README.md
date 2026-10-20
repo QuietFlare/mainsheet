@@ -27,7 +27,7 @@ against a baseline per model and policy version.
 
 The mainsheet is the line a sailor holds to keep the sail under control.
 
-![Mainsheet system design](docs/mainsheet_systemdesign.png)
+![Mainsheet system design](docs/mainsheet.png)
 
 ## Install
 
@@ -165,6 +165,10 @@ http://localhost:6006.
   human approval required, or an irreversible tool after untrusted
   output: each is refused with a reason the model reads. A refused call
   stays refused. A retry gets no fresh decision.
+- **The cost cap stops the run, not just the report.** `max_cost_usd` is
+  handed to the harness, which ends the run as soon as it is reached. The
+  stop is a `budget:cost_usd` violation in the log and the run finishes,
+  it does not fail.
 - **Commands cannot reach the network unless the policy says so.** Every
   command the agent runs is sandboxed by the harness, Seatbelt on macOS
   and bubblewrap on Linux, with egress limited to `policy.network.allow`,

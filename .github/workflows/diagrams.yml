@@ -1,0 +1,17 @@
+# Keep docs/mainsheet_systemdesign.png's source rendered: every pull request
+# that changes docs/*.excalidraw gets the PNG re-rendered and committed.
+# Rendering lives in the shared workflow; only the trigger is here.
+
+name: diagrams
+
+on:
+  pull_request:
+    paths: ["docs/*.excalidraw"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  render:
+    uses: QuietFlare/ci-workflows/.github/workflows/excalidraw-render.yml@v1
