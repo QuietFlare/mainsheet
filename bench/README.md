@@ -49,6 +49,23 @@ The cache-read column is not evidence of sharing. The harness caches within a se
 
 The question list did not overlap enough. Two questions per agent on distinct topics means the agents mostly needed different pages. The memory would help a swarm whose members read the same sources, which this one was built to simulate and did not.
 
+## Arm B again, staggered
+
+Two changes. The runner's `--stagger` option starts each agent when the previous agent's first memory entry lands, and arm B's prompt now says to store a digest immediately after each fetch rather than at the end.
+
+| instance | start | seconds | calls | fetches | recalls | remembers | input | cache_write | cache_read | output | usd | violations |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| bench-b-1 | 0.0 | 80.7 | 11 | 4 | 3 | 2 | 14 | 15319 | 65909 | 2481 | 0.3629 | 1 |
+| bench-b-2 | 42.7 | 59.2 | 12 | 4 | 4 | 2 | 14 | 8471 | 70239 | 1996 | 0.3632 | 1 |
+| bench-b-3 | 70.3 | 77.2 | 13 | 6 | 3 | 3 | 14 | 9711 | 76341 | 2345 | 0.3533 | 2 |
+| total | | 147.5 | 36 | 14 | 10 | 7 | 42 | 33501 | 212489 | 6822 | 1.0795 | 4 |
+
+The timing problem is gone. Agent one stored its first digest 42 seconds in, eight seconds after its first fetch, and the next agent started on that write. The prefix cache shared for the first time: agents two and three wrote about 40 percent fewer cache tokens than agent one, where in the earlier runs every agent wrote the full prefix.
+
+The memory still returned nothing the readers could use. Agent two asked about ePA formats when the store held GP counts. Agent three asked about lab budgets and PVS prices when it held GP counts and ePA formats. The recalls hit a filled store this time and found nothing relevant, because the six questions, chosen for shared sources, needed different pages in practice. Output tokens landed between the two earlier arms, cost was the cap again, and the group took 147 seconds instead of 56.
+
+So the first blocker was timing and the second is overlap. Memory pays only when later readers need pages earlier readers stored.
+
 ## What would change the result
 
-Stagger the starts by the time of one fetch, so the second agent's recall can hit. Give the agents overlapping sources, or one reader that fills the memory before the others start. Run the instances in one working directory, or strip it from the prompt, so the prefix can be shared at all. Recall once at the start, not before every fetch, when the memory is known to be empty. Then run each arm more than once.
+Give the agents the same questions, or questions whose answers sit on the same pages, so that a recall can hit. Run the instances in one working directory, or strip it from the prompt, so the whole prefix can be shared rather than the part before it. Recall once at the start rather than before every fetch. Then run each arm more than once.
