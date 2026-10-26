@@ -68,11 +68,19 @@ def args_digest(tool_input: dict) -> str:
     return "sha256:" + hashlib.sha256(json.dumps(tool_input, sort_keys=True, default=str).encode()).hexdigest()[:16]
 
 
-class Gate:
-    """Per-instance state for the policy: counts, taint, and denials that stay in force."""
+PENDING = "approval_pending"
 
-    def __init__(self, policy: Policy) -> None:
+
+class Gate:
+    """Per-instance state for the policy: counts, taint, and denials that stay in force.
+
+    With a person attached, a tool that requires approval is put to them and their answer decides.
+    With nobody attached, it is denied.
+    """
+
+    def __init__(self, policy: Policy, human=None) -> None:
         self.policy = policy
+        self.human = human
         self.tool_calls = 0
         self.tainted = False
         self.denied: set[tuple[str, str]] = set()
@@ -100,14 +108,25 @@ class Gate:
         if rule.irreversible and self.tainted:
             return self._deny(name, digest, "tainted_irreversible", "critical",
                               f"{name} is irreversible and this session consumed untrusted output")
-        if rule.approval == "human":
+        if rule.approval == "human" and self.human is None:
             return self._deny(name, digest, "approval_required", "medium",
                               f"{name} requires human approval, which is not available in this run")
         if self.tool_calls >= self.policy.budgets.max_tool_calls:
             return self._deny(name, digest, "budget:tool_calls", "medium",
                               f"tool call budget of {self.policy.budgets.max_tool_calls} reached")
+        if rule.approval == "human":
+            # Not a decision yet: the hook puts the question and calls approved() with the answer.
+            return Decision(allow=False, rule=PENDING, reason=f"{name} requires your approval")
         self.tool_calls += 1
         return Decision(allow=True, rule="allowed")
+
+    def approved(self, tool_name: str, tool_input: dict, answer: str) -> Decision:
+        """The person's answer to a pending call. Only a plain yes allows; anything else is a denial that stays."""
+        name, digest = short_name(tool_name), args_digest(tool_input)
+        if answer.strip().lower() in ("y", "yes"):
+            self.tool_calls += 1
+            return Decision(allow=True, rule="approval:human", reason=answer)
+        return self._deny(name, digest, "approval:human", "low", f"refused by the person: {answer!r}")
 
     def post(self, tool_name: str, tool_response=None) -> Decision | None:
         """After a call: mark taint, and surface a sandbox violation as a critical decision."""
@@ -150,8 +169,15 @@ def make_hooks(gate: Gate, on_decision) -> dict[str, list[HookMatcher]]:
     """SDK hooks that consult the gate before every call and update it after. on_decision(tool, input, decision) records."""
 
     async def pre(input_data, tool_use_id, context):
-        decision = gate.pre(input_data["tool_name"], input_data.get("tool_input") or {})
-        on_decision(input_data["tool_name"], input_data.get("tool_input") or {}, decision)
+        name, tool_input = input_data["tool_name"], input_data.get("tool_input") or {}
+        decision = gate.pre(name, tool_input)
+        if decision.rule == PENDING:
+            try:
+                answer = await gate.human.ask(f"{decision.reason}: {short_name(name)} {json.dumps(tool_input, default=str)}. Allow? (yes/no)")
+            except RuntimeError as exc:
+                answer = f"no answer: {exc}"
+            decision = gate.approved(name, tool_input, answer)
+        on_decision(name, tool_input, decision)
         if decision.allow:
             return {}
         return {"hookSpecificOutput": {

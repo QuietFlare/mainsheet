@@ -68,6 +68,9 @@ class ToolsConfig(BaseModel):
     servers: dict[str, ServerConfig] = {}
 
 
+SKILL_NAME = re.compile(r"^[a-z][a-z0-9_-]*:[a-z][a-z0-9_-]*$")
+
+
 class AgentConfig(BaseModel):
     name: str = Field(pattern=r"^[a-z][a-z0-9_-]{1,31}$")
     model: Model
@@ -77,7 +80,35 @@ class AgentConfig(BaseModel):
     system_prompt: str
     task: str
     tools: ToolsConfig
+    plugins: list[str] = []  # folders the harness loads as local plugins; ${VAR} expands
+    skills: list[str] = []  # plugin:skill, each a SKILL.md inside one of the plugins
     policy: Policy = Policy()
+
+    @model_validator(mode="after")
+    def skills_ship_with_a_plugin(self) -> "AgentConfig":
+        for name in self.skills:
+            if not SKILL_NAME.match(name):
+                raise ValueError(f"skill {name!r} must be named plugin:skill")
+            skill_file(self, name)
+        return self
+
+
+def plugin_dirs(cfg: AgentConfig) -> list[Path]:
+    """Plugin folders, absolute: a relative path is read from where Mainsheet was started, not from the instance's work folder."""
+    return [Path(expanded(p)).resolve() for p in cfg.plugins]
+
+
+def skill_file(cfg: AgentConfig, name: str) -> Path:
+    """The SKILL.md a plugin:skill name points at, or an error naming what is missing."""
+    plugin, _, skill = name.partition(":")
+    for folder in plugin_dirs(cfg):
+        manifest = folder / ".claude-plugin" / "plugin.json"
+        if manifest.is_file() and json.loads(manifest.read_text()).get("name") == plugin:
+            path = folder / "skills" / skill / "SKILL.md"
+            if path.is_file():
+                return path
+            raise ValueError(f"plugin {plugin!r} at {folder} has no skill {skill!r}")
+    raise ValueError(f"no plugin named {plugin!r} among {cfg.plugins or 'no plugins'}")
 
 
 def load(path: Path) -> AgentConfig:
@@ -91,8 +122,10 @@ def save(cfg: AgentConfig, path: Path) -> None:
 
 
 def digest(cfg: AgentConfig) -> str:
-    """Fingerprint of the whole definition: any change to it, with or without a new policy version, changes this."""
-    return "sha256:" + hashlib.sha256(json.dumps(cfg.model_dump(), sort_keys=True).encode()).hexdigest()
+    """Fingerprint of the whole definition, skills included: the same file with a changed SKILL.md is a different agent."""
+    skills = {name: skill_file(cfg, name).read_text() for name in cfg.skills}
+    body = json.dumps({"definition": cfg.model_dump(), "skills": skills}, sort_keys=True)
+    return "sha256:" + hashlib.sha256(body.encode()).hexdigest()
 
 
 # What the harness authenticates with, in the order it looks. A stored login is what is left
@@ -143,10 +176,14 @@ def build_options(cfg: AgentConfig, cwd: Path, hooks: dict | None = None,
         servers[key] = stdio(spec) if spec.command else \
             importlib.import_module(spec.module).make_server(cfg.name)
         allowed += [f"mcp__{key}__{name}" for name in spec.allow]
+    # A skill is invoked through the harness's Skill tool, which the empty tool set would strip.
+    # Setting sources stay empty so the run discovers only what the definition ships, not the
+    # operator's own skills and settings.
+    tools = list(cfg.tools.builtin) + (["Skill"] if cfg.skills else [])
     return ClaudeAgentOptions(
         cwd=str(cwd),
         model=cfg.model,
-        tools=cfg.tools.builtin,
+        tools=tools,
         mcp_servers=servers,
         allowed_tools=allowed,
         permission_mode=cfg.permission_mode,
@@ -156,4 +193,7 @@ def build_options(cfg: AgentConfig, cwd: Path, hooks: dict | None = None,
         system_prompt=cfg.system_prompt,
         hooks=hooks or {},
         sandbox=sandbox_settings(cfg.policy),
+        plugins=[{"type": "local", "path": str(p)} for p in plugin_dirs(cfg)],
+        skills=cfg.skills,
+        setting_sources=[],
     )

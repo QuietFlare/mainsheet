@@ -62,6 +62,15 @@ The policy table is enforced by a PreToolUse hook. The model is asked what it
 wants, never whether it may. A denial stays in force for the run.
 Applied in `mainsheet/agent/policy.py`.
 
+## A person's answer is a gate decision, and their time is not the run's
+
+The person an agent may address is one backend per process, attached by the
+command that started the run. The gate puts an approval to them and records
+their answer as the decision; the tool `ask_human` puts a question. While
+they think, the run clock stands still. Nobody attached means the refusal
+that stood before. Applied in `mainsheet/agent/tools/human.py`,
+`mainsheet/agent/policy.py`, `Gate.approved()`, and `mainsheet/agent/runtime.py`, `bounded()`.
+
 ## Every refusal is a violation
 
 Denials carry severity, rule, tool, argument digest and policy version, and are

@@ -6,6 +6,7 @@ from pathlib import Path
 from mainsheet.agent.config import load
 from mainsheet.agent.runtime import Registry, Status
 from mainsheet.agent.telemetry import shutdown, tracer
+from mainsheet.agent.tools import human
 from mainsheet.paths import default_agent
 
 CONFIG = default_agent()
@@ -13,6 +14,7 @@ CONFIG = default_agent()
 
 async def main(config: Path = CONFIG, resume: str | None = None) -> int:
     tracer()
+    human.attach(human.Terminal())  # the person is whoever started this command
     registry = Registry()
     cfg = load(config)
     inst = registry.reopen(resume, cfg) if resume else registry.create(cfg)

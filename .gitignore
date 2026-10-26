@@ -12,3 +12,5 @@ evals/baseline.jsonl
 .claude/
 !agents/egress_probe.yaml
 bench/results/*.db
+!agents/human_probe.yaml
+!agents/probe_plugin/

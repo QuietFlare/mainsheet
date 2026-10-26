@@ -105,6 +105,22 @@ tools:
       allow: [clew_inbox, clew_triage, clew_impact, clew_seal]
 ```
 
+An agent may carry a method. `plugins:` names folders the harness loads
+as local plugins, and `skills:` names `plugin:skill` entries inside them,
+each a `SKILL.md`. The skill text is part of the definition's digest, so
+the same file with a changed skill is a different agent. The gate sees
+the `Skill` call like any other, and the policy says which skills may be
+invoked. Nothing from the operator's own skills or settings reaches the
+run.
+
+An agent may ask the person who started it. The module
+`mainsheet.agent.tools.human` gives one tool, `ask_human`, which prints
+the question in the terminal and waits for one line. A tool marked
+`approval: human` in the policy is put to the same person before it runs,
+and only a plain yes allows it. Time spent waiting on a person does not
+count against the run's timeout. Under the panel nobody is attached, and
+both fall back to a refusal. `agents/human_probe.yaml` shows the shape.
+
 ### 2. Run it
 
 ```bash
@@ -156,7 +172,9 @@ assertions on behaviour, output and quality. The cases are a proposal. A
 person reads, edits and commits them. Each case runs several times and
 passes on a rate, and results append to `evals/baseline.jsonl` with the
 model and policy version, so a change in behaviour is a diff between two
-rows.
+rows. `bench/gate/` runs the same suite under three definitions of one
+agent, rules in the prompt, rules in the gate, or both, and tables where
+each holds.
 
 ### 5. Watch it
 
@@ -173,9 +191,13 @@ http://localhost:6006.
 
 - **The gate runs before every call.** Unknown tool, disallowed tool, an
   argument outside its pattern, a deny pattern match, a budget reached,
-  human approval required, or an irreversible tool after untrusted
-  output: each is refused with a reason the model reads. A refused call
-  stays refused. A retry gets no fresh decision.
+  human approval required with nobody to ask, or an irreversible tool
+  after untrusted output: each is refused with a reason the model reads.
+  A refused call stays refused. A retry gets no fresh decision.
+- **A person's answer is a decision in the record.** A tool that requires
+  approval is put to the person at the terminal, and their yes or no is
+  recorded like any other gate decision, with their words as the reason.
+  A no stays in force for the run.
 - **The cost cap stops the run, not just the report.** `max_cost_usd` is
   handed to the harness, which ends the run as soon as it is reached. The
   stop is a `budget:cost_usd` violation in the log and the run finishes,

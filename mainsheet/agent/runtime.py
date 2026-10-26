@@ -1,5 +1,6 @@
 """Instances: a definition made runnable, with its own root, log, limits and lifecycle."""
 import asyncio
+import contextlib
 import json
 import shutil
 import time
@@ -25,6 +26,7 @@ from mainsheet.agent.config import AgentConfig, build_options, credential, diges
 from mainsheet.agent.events import EventLog
 from mainsheet.agent.evidence import TRAIL, Evidence
 from mainsheet.agent.policy import Decision, Gate, args_digest, make_hooks, short_name
+from mainsheet.agent.tools import human
 from mainsheet.paths import HOME
 
 INSTANCES = HOME / "instances"
@@ -225,7 +227,7 @@ class Registry:
 
     async def _run(self, inst: Instance) -> None:
         try:
-            await asyncio.wait_for(run_loop(inst), timeout=inst.cfg.timeout_s)
+            await bounded(run_loop(inst), inst.cfg.timeout_s, human.attached())
             inst.status = Status.finished
         except asyncio.CancelledError:
             inst.status = Status.cancelled
@@ -242,12 +244,33 @@ class Registry:
                                 cost_usd=inst.cost_usd, violations=inst.violations, error=inst.error)
 
 
+async def bounded(coro, timeout_s: float, person=None):
+    """Like wait_for, except that time the person spent answering does not count against the timeout."""
+    task = asyncio.ensure_future(coro)
+    started = time.monotonic()
+    try:
+        while True:
+            waited = person.waited if person is not None else 0.0
+            remaining = timeout_s - (time.monotonic() - started - waited)
+            if remaining <= 0:
+                task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await task
+                raise asyncio.TimeoutError
+            done, _ = await asyncio.wait({task}, timeout=remaining)
+            if done:
+                return task.result()
+    except asyncio.CancelledError:
+        task.cancel()
+        raise
+
+
 async def run_loop(inst: Instance) -> None:
     """One pass of the agent loop for this instance, every step printed, logged and traced."""
     cfg, log = inst.cfg, inst.log
     preflight(cfg)
     tr = trace.get_tracer("mainsheet")
-    gate = Gate(cfg.policy)
+    gate = Gate(cfg.policy, human=human.attached())
     if inst.resume_session:
         gate.tainted = tainted_before(inst.root, cfg.policy)
     options = build_options(cfg, inst.root / "work", hooks=make_hooks(gate, inst.record_decision),
