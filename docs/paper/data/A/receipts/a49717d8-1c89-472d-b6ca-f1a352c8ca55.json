@@ -1,0 +1,47 @@
+{
+  "evidence": {
+    "actionId": "9897a002-e3e3-46f3-9db8-dda278ca064a",
+    "agentId": "aurae-research",
+    "decidedAt": "2026-10-20T09:51:51.591Z",
+    "decision": "allow",
+    "eventType": "decision_made",
+    "previousHash": "sha256:33830b4032f010181097b4b23c86c9c628627316afa625282c3a039a25f9f015",
+    "reason": "allowed",
+    "recordHash": "sha256:5c658b06c96bbf751bd3fb027f0968b8f8cb1670dc2a2b73072766535459a5d8",
+    "recordId": "a49717d8-1c89-472d-b6ca-f1a352c8ca55",
+    "riskScore": "0",
+    "schema": "vaara.trail-decision/v0",
+    "tenantId": "",
+    "toolName": "WebFetch"
+  },
+  "receipt": {
+    "alg": "ES256",
+    "backLink": {
+      "attestationDigest": "sha256:33830b4032f010181097b4b23c86c9c628627316afa625282c3a039a25f9f015",
+      "attestationNonce": "a49717d8-1c89-472d-b6ca-f1a352c8ca55"
+    },
+    "decisionDerived": {
+      "decidedAt": "2026-10-20T09:51:51.591Z",
+      "decision": "allow",
+      "evidenceRef": {
+        "canonicalization": "jcs-rfc8785",
+        "digest": "sha256:79d328f11bbf4480f907e89ae2ace5cad5c394d5c1dde855761827f08a3101b0",
+        "ref": "vaara:trail/a49717d8-1c89-472d-b6ca-f1a352c8ca55",
+        "schema": "vaara.trail-decision/v0"
+      },
+      "policyId": "policy:vaara-engine/1",
+      "reason": "allowed",
+      "riskScore": "0"
+    },
+    "issuerAsserted": {
+      "alg": "ES256",
+      "iat": "2026-10-20T09:51:51Z",
+      "iss": "vaara:engine",
+      "nonce": "IR_GrCEeAwBybgtJ_Ep_a0i7",
+      "secretVersion": "es256:b83d019d20ce866b",
+      "sub": "aurae-research"
+    },
+    "signature": "cbc6164bd978f5a237f62f02a707c98f2235ecb2dbf3a2da56a0b474d26e2e5a8d1b419d25f508297bcd1f86f959cf3dd08c053612162e66a30980e2f8c7773f",
+    "version": 1
+  }
+}

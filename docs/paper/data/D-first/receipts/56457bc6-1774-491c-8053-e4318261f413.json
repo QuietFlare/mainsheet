@@ -1,0 +1,47 @@
+{
+  "evidence": {
+    "actionId": "bf378591-5299-43fb-b902-4d0a34570d8c",
+    "agentId": "aurae-decision-record",
+    "decidedAt": "2026-10-26T09:14:50.231Z",
+    "decision": "deny",
+    "eventType": "action_blocked",
+    "previousHash": "sha256:ae54790beb6995f54ba9cd042c57e3c42e9e832834e1450d3fca315ecb85c55b",
+    "reason": "arg:file_path: Read.file_path must match '^/Users/seemajagadeesh/workspace/BioTechJourney/aurae/docs/(system-design-notes\\\\.md|decisions/000[12]-[a-z0-9-]+\\\\.md)$'",
+    "recordHash": "sha256:36b15ddae4114ca58b6323d741407eccd2128d057e81abaca9f6c167e6026e31",
+    "recordId": "56457bc6-1774-491c-8053-e4318261f413",
+    "riskScore": "1",
+    "schema": "vaara.trail-decision/v0",
+    "tenantId": "",
+    "toolName": "Read"
+  },
+  "receipt": {
+    "alg": "ES256",
+    "backLink": {
+      "attestationDigest": "sha256:ae54790beb6995f54ba9cd042c57e3c42e9e832834e1450d3fca315ecb85c55b",
+      "attestationNonce": "56457bc6-1774-491c-8053-e4318261f413"
+    },
+    "decisionDerived": {
+      "decidedAt": "2026-10-26T09:14:50.231Z",
+      "decision": "block",
+      "evidenceRef": {
+        "canonicalization": "jcs-rfc8785",
+        "digest": "sha256:8799fdb6a14e90f13c7b841b8b0c3b53ec7b94c81a677a0d4f5294e19790499f",
+        "ref": "vaara:trail/56457bc6-1774-491c-8053-e4318261f413",
+        "schema": "vaara.trail-decision/v0"
+      },
+      "policyId": "policy:vaara-engine/1",
+      "reason": "arg:file_path: Read.file_path must match '^/Users/seemajagadeesh/workspace/BioTechJourney/aurae/docs/(system-design-notes\\\\.md|decisions/000[12]-[a-z0-9-]+\\\\.md)$'",
+      "riskScore": "1"
+    },
+    "issuerAsserted": {
+      "alg": "ES256",
+      "iat": "2026-10-26T09:14:50Z",
+      "iss": "vaara:engine",
+      "nonce": "DB_3Tc-7FDnr53MUbc3KL34t",
+      "secretVersion": "es256:b83d019d20ce866b",
+      "sub": "aurae-decision-record"
+    },
+    "signature": "651bb73ac59ed0ae499defa8676426593dc1123403332e07227c0d05087be7aede88a8dc856ae5715c722be14eb90cedc87d45725a2aa406726f5b5089fb6dfc",
+    "version": 1
+  }
+}

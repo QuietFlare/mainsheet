@@ -1,0 +1,47 @@
+# Writes one Aurae decision record in the author's words. The agent asks its questions at the
+# terminal, drafts the record by the aurae:decision-record skill, and the gate puts the final
+# Write to the same person before it runs. The record lands in the instance's work folder, not
+# in the repo, because the harness only lets the agent write where it was started. Copy it into
+# docs/decisions after reading it.
+#
+# Run from the Mainsheet checkout, so instances/ and trail/ land there:
+#   cd ~/workspace/BioTechJourney/mainsheet
+#   .venv/bin/mainsheet ~/workspace/BioTechJourney/aurae/agents/decision_record.yaml
+name: aurae-decision-record
+model: claude-sonnet-5-5
+max_turns: 25
+timeout_s: 900
+permission_mode: acceptEdits
+system_prompt: >
+  You help the author of Aurae record one design decision. Use tools only for the task given.
+  Follow the skill the task names. The person's answers are the content. Invent nothing.
+task: >
+  Write decision record 0003 for Aurae by following the aurae:decision-record skill.
+  The topic is the shape of the application: one Spring Boot process as a modular monolith,
+  with one satellite service for OCR later. The context is in
+  /Users/operator/workspace/BioTechJourney/aurae/docs/system-design-notes.md and the
+  shape is in 0001-backend-kotlin-spring-boot.md and 0002-database-postgresql.md under
+  /Users/operator/workspace/BioTechJourney/aurae/docs/decisions. Then stop.
+tools:
+  builtin: [Read, Write]
+  servers:
+    human:
+      module: mainsheet.agent.tools.human
+      allow: [ask_human]
+plugins: [/Users/operator/workspace/BioTechJourney/aurae/agents/aurae_plugin]
+skills: [aurae:decision-record]
+policy:
+  version: 1
+  tools:
+    Skill:
+      args: {skill: {pattern: "^aurae:decision-record$"}}
+    Read:
+      args:
+        file_path: {pattern: "^/Users/operator/workspace/BioTechJourney/aurae/docs/(system-design-notes\\.md|decisions/000[12]-[a-z0-9-]+\\.md)$"}
+    ask_human: {}
+    Write:
+      approval: human
+      args:
+        file_path: {pattern: "(^|/)0003-[a-z0-9-]+\\.md$"}
+  budgets: {max_tool_calls: 16, max_cost_usd: 0.50}
+  network: {allow: []}
