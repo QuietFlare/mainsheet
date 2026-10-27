@@ -4,7 +4,7 @@ An experience report
 
 Seema Jagadeesh, QuietFlare
 
-Draft of 2026-10-26. Code at Mainsheet commit `0075744` on `main`.
+Code at Mainsheet commit `0075744` on `main`.
 
 ## Abstract
 
@@ -340,6 +340,18 @@ next step is to put the data folder in a reader's hands and have someone
 else run the verifier, and then to measure the gate on cases somebody
 else wrote.
 
+## Acknowledgments
+
+The runtime, the policies, the runs, the decision records and the data
+are the author's. The text of this report, in every section, was drafted
+by Claude [12], Anthropic's model, working in Claude Code from the
+author's code, logs and decision records under her direction, and was
+revised by the author over several rounds. Two reviews the author
+obtained from ChatGPT (OpenAI) and Grok (xAI) led to corrections, which
+the author checked against the logs before accepting. The verification
+script in the data folder was written the same way and tested against
+altered receipts.
+
 ## References
 
 [1] E. Debenedetti, J. Zhang, M. Balunović, L. Beurer-Kellner, M. Fischer
@@ -379,3 +391,6 @@ and 14.
 
 [11] OWASP GenAI Security Project, "OWASP Top 10 for Agentic Applications
 for 2026," 9 December 2025, genai.owasp.org.
+
+[12] Anthropic, Claude Fable 5.1 (model id claude-fable-5-1) in Claude
+Code, October 2026, claude.com.
