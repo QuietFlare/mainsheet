@@ -2,7 +2,7 @@
 
 An experience report
 
-Seema Jagadeesh, QuietFlare, Filderstadt, Germany
+Seema Jagadeesh, QuietFlare
 
 Draft of 2026-10-26. Code at Mainsheet commit `0075744` on `main`.
 
@@ -28,22 +28,28 @@ nothing beyond them.
 
 ## 1. What governing an agent means here
 
-A team in a regulated field can build an agent in an afternoon and cannot
-deploy it, because nobody can answer the two questions a reviewer asks.
-What is this agent allowed to do, and what did it actually do. Today the
-first answer lives in a prompt the model may or may not follow, and the
-second in a dashboard someone can edit, or in the memory of whoever ran
-it. Neither survives the reviewer's next question, which is how do you
-know.
+A team in a regulated industry can build an agent in an afternoon and
+cannot deploy it, because nobody can answer two questions.
+
+What is this agent allowed to do?
+
+What did it actually do?
+
+The first is the reviewer's question, asked before a deployment is
+approved. The second is the auditor's, asked afterwards, often by the
+same person. Today the first answer lives in a prompt the model may or
+may not follow, and the second in a dashboard someone can edit, or in the
+memory of whoever ran it. Neither survives the next question, which is
+how do you know.
 
 Mainsheet treats governance as three obligations on the runtime. To
 define is to keep the policy as a document apart from the prompt,
 versioned, fingerprinted, reviewable without running anything. To
 enforce is to apply the policy in code at the point where the agent
 touches the world, the tool call, under rules the model never sees. To
-prove is to record every decision so that a person who was not there can
-verify what was allowed, what was refused and why, and that nothing was
-altered afterwards. The policy,
+prove is to record every decision as evidence, so that an auditor who was
+not there can verify what was allowed, what was refused and why, and that
+nothing was altered afterwards. The policy,
 the gate and the record are the three parts, and the rest of the runtime
 exists to serve them.
 
@@ -345,7 +351,7 @@ would break the signature.
 ## 7. Conclusion
 
 A policy in a file, a gate at the tool call and a signed record answer
-the reviewer's two questions for the calls the gate sees, and four runs
+the reviewer's question and the auditor's for the calls the gate sees, and four runs
 of my own showed where that answer was thinner than its design. A cost
 control has to live where the cost is observed. A control too blunt to
 live with gets switched off by the person it protects. The harness under
