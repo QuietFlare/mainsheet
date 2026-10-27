@@ -8,23 +8,18 @@ Draft of 2026-10-26. Code at Mainsheet commit `0075744` on `main`.
 
 ## Abstract
 
-Governing an agent means answering two questions for someone who was not
-in the room. What was it allowed to do, and what did it do. Mainsheet is
-a small runtime built on the Claude Agent SDK that answers them in three
-parts. The policy is one file a reviewer can read and diff. A gate in
-code enforces it before every tool call, where the model cannot argue.
-Every decision leaves a signed receipt in a hash chain that a third party
-can verify. Over five weeks I governed my own agents this way, and four
-things happened that the design had not anticipated, each in one run
-whose log ships with this paper. The runs were not an experiment. They
-were jobs I needed done, and the lessons are read from their event logs
-and receipts after the fact. A cost control checked at the end of a
-run is a report, not a control. A control that is too blunt gets switched
-off by the operator it is meant to protect. Two control planes, the
-runtime's and the harness's, can disagree. Human oversight has to be a
-recorded decision, not a refusal, and the person's time is not the
-agent's. The evidence is one operator and four runs, and the report claims
-nothing beyond them.
+Governing an agent means answering two questions. What was it allowed to
+do, and what did it do. Mainsheet, a runtime on the Claude Agent SDK,
+answers them with a policy in one file a reviewer can read and diff, a
+gate in code that enforces it before every tool call, and a signed
+receipt per decision an auditor can verify. Over five weeks I governed my
+own agents this way, and four things happened the design had not
+anticipated. A cost control checked at the end of a run is a report, not
+a control. A control too blunt gets switched off by the operator it
+protects. The runtime and the harness beneath it can disagree. Human
+oversight must be a recorded decision, and the person's time is not the
+agent's. The logs ship with the paper. The evidence is one operator, and
+the report claims nothing beyond it.
 
 ## 1. What governing an agent means here
 
@@ -66,72 +61,59 @@ the design assumed.
 Mainsheet is a Python package, first committed on 21 September 2026. It
 runs one agent per instance on the SDK's agent loop.
 
-**Define.** One YAML file is the agent, and the policy lives inside it on
-purpose, because a policy kept apart from the agent it governs is applied
-by whoever remembers to. The file holds the model, the limits on turns
-and time, the system prompt, the task, the tools the agent may call, and
-a policy table with a rule per tool. A rule says whether the tool is
-allowed, whether it needs approval, whether it is irreversible, whether
-its output is untrusted, and gives a regular expression per argument.
-The policy also carries deny patterns matched against every string in a
-call, a budget of tool calls and one of cost, and a list of hosts that
-commands may reach, empty by default. Changing the policy is a diff. The
-file is fingerprinted and the digest goes into the chain when an instance
-is created, so every decision points at the exact policy in force. Two
-runs with the same digest ran the same definition. The digest says
-nothing about the model's output on the day or the harness version
-underneath, which the lifecycle record names separately.
+**Define.** One YAML file is the agent, and the policy lives inside it,
+because a policy kept apart from the agent it governs is applied by
+whoever remembers to. The file holds the model, the limits on turns and
+time, the prompt, the task, the tools, and a rule per tool. A rule says
+whether the tool is allowed, needs approval, is irreversible, or returns
+untrusted output, and gives a regular expression per argument. The policy
+also carries deny patterns, a budget of calls and one of cost, and the
+hosts commands may reach, none by default. Changing the policy is a diff.
+The file is fingerprinted and the digest goes into the chain when an
+instance is created, so every decision points at the exact policy in
+force. Two runs with the same digest ran the same definition, which says
+nothing about the model's output that day or the harness beneath it.
 
-**Enforce.** A PreToolUse hook consults a `Gate` object holding the policy
-and the run's state before every call. It refuses a call that names a
-tool not in the policy, an argument outside its pattern, a string
-matching a deny pattern, an irreversible tool after any untrusted output,
-a tool needing approval when nobody is attached, or any tool once the
-call budget is spent. A refused call, the same tool with the same
-arguments, stays refused for the rest of the run without a fresh
-decision, so a retry cannot wear the gate down. The run itself goes on
-and every other call is decided on its own merits. The reason reaches the
-model as text. The gate intercepts the calls the harness routes through
-its hook, and what a command does once allowed, the files it touches and
-the processes it starts, happens inside that one decision. Egress is
-enforced one layer down, because a rule can be retried and a closed
-socket cannot. The policy's host list goes to the SDK's sandbox [7], which
-denies every other host to every command the agent runs. Budgets on
-calls, cost, turns and time bound what a run can consume whatever it
-decides to do.
+**Enforce.** A PreToolUse hook puts every call to a gate holding the
+policy and the run's state. The gate refuses a tool not in the policy, an
+argument outside its pattern, a string matching a deny pattern, an
+irreversible tool after untrusted output, a tool needing approval with
+nobody attached, and any tool once the call budget is spent. A refused
+call, the same tool with the same arguments, stays refused for the run,
+so a retry cannot wear the gate down. The run goes on and every other
+call is decided on its own. The reason reaches the model as text. What a
+command does once allowed happens inside that one decision. Egress is
+enforced a layer down, because a rule can be retried and a closed socket
+cannot. The policy's host list goes to the SDK's sandbox [7], which
+denies every other host to every command. Budgets on calls, cost, turns
+and time bound what a run can consume.
 
-**Prove.** Every decision is recorded twice. Every tool call goes into
-the instance's `events.jsonl` with its arguments, and every gate decision
-goes in beside it with the tool, the rule, the verdict, a digest of the
-arguments and the id of its receipt. The receipt is written through
-Vaara [8], a library that keeps a hash-chained audit trail and signs one
-per decision, and it carries the decision, the tool, the agent and the
-time, not the arguments or their digest. `mainsheet-verify <instance>` checks the chain and each receipt
-and confirms that every decision event names a receipt that agrees with
-it. The lifecycle of the instance, created, started, ended with its cost
-and violation count, goes into the same chain, so the record of a run
-reads as one sequence from the policy's digest to the last decision. The
-design decisions behind the runtime are themselves kept as numbered
-records in the repository, so the reviewer can read why a rule is shaped
-as it is.
+**Prove.** Every decision is recorded twice. Each tool call goes into the
+instance's event log with its arguments, and each gate decision goes in
+beside it with the tool, the rule, the verdict, a digest of the arguments
+and the id of its receipt. The receipt is written through Vaara [8], a
+library that keeps a hash-chained audit trail and signs one per decision.
+It carries the decision, the tool, the agent and the time, not the
+arguments or their digest. The instance's lifecycle goes into the same
+chain, so a run reads as one sequence from the policy's digest to the
+last decision. The verifier checks the chain and each receipt and
+confirms that every decision event names a receipt that agrees with it.
+The design decisions behind the runtime are kept as numbered records in
+the repository.
 
-What the chain proves is narrower than the word suggests, and it is
-worth being exact. A verified chain shows that each recorded decision was
-signed at the time by the key the runtime holds, that each receipt
-matches its event, and that no record was altered or removed afterwards
-without the verifier noticing. That is detection, not prevention. The
-signing key sits in the trail folder on the same machine as the runtime,
-so the receipts are the operator's own word, made tamper-evident, and
-someone with the machine and the key could rewrite the chain from the
-start. The chain does not show that every relevant event was captured,
-since a decision the runtime never recorded leaves no gap, and it does
-not show what a tool did once allowed, since it records the decision and
-not the effect. The receipt does not carry the argument digest either.
-The decision event's digest ties it to the call event beside it in the
-log, so the receipt attests that a decision was made and the log attests
-what it was about. Several instances in one working folder write to one chain,
-and a second writer extends it, which the tests cover. The runtime
-refuses to append to a chain that is already broken.
+What the chain proves is narrower than the word suggests. A verified
+chain shows that each decision was signed at the time by the key the
+runtime holds, that each receipt matches its event, and that nothing was
+altered or removed afterwards without the verifier noticing. That is
+detection, not prevention. The key sits on the same machine as the
+runtime, so the receipts are the operator's own word made tamper-evident,
+and someone with the machine and the key could rewrite the chain from the
+start. The chain does not show that every event was captured, since a
+decision never recorded leaves no gap, and it does not show what a tool
+did once allowed. The receipt attests that a decision was made, and the
+log, through the argument digest on the decision event, attests what it
+was about. Several instances in one folder write to one chain, and the
+runtime refuses to append to a chain already broken.
 
 ## 3. Four lessons, each from one run
 
@@ -149,7 +131,7 @@ Table 1. The four runs.
 | A | 20 Oct | desk research, 16 questions, 90-call budget, 2.00 USD cap, resumed once | cost cap, taint, path pattern | 94 calls, 4 refused, 7.09 USD recorded at the end, a private file read refused, writes marked reversible | cap handed to the harness, settings kept out of runs |
 | B | 20 Oct | run A's agent, cap 0.10 USD | cost cap in the harness | stopped at 0.104 USD after two calls | none, the fix held |
 | C | 26 Oct | probe, 60 s timeout | human wait against the run clock | answer after 68 s, run finished at 77 s | none, the design held |
-| D | 26 Oct | interview agent writing a design record, two attempts logged as two instances | path pattern, human questions, approval on write | first attempt, a folder listing refused and the agent asked instead; second attempt, four questions answered, cancelled before the write | none, the approval path not reached |
+| D | 26 Oct | interview agent writing a design record, two attempts logged as two instances | path pattern, human questions, approval on write | first attempt, a folder listing refused and the agent asked instead; second attempt, four questions answered, canceled before the write | none, the approval path not reached |
 
 Of what follows, the cost stop, the taint rule and its carry-over across
 a resumed run, the approval semantics, the wait not counting against the
@@ -164,34 +146,30 @@ to an API key. The agent had read, search, fetch and write tools, path
 patterns on read and write, a budget of ninety calls and a cost cap of
 2.00 USD. It attempted 94 calls. The gate allowed 90 and refused four, two
 reads outside the path pattern and then a fetch and a write at the
-budget.
-The model's last message explains that the final write failed on the
+budget. The model's last message says the final write failed on the
 budget and lists what was saved. The gate did what it was written to do.
 
-The cost did not. The run ended thirteen minutes after it started with
-7.09 USD recorded, and
-one line before it a violation reading "run cost 7.0905 exceeded 2.0".
-The cap had been compared to the total only when the result arrived. The
-gate cannot enforce cost. It sees tool calls, not tokens, and the money
-accrues in the model calls between them. The harness knows the cost
-after every call and accepts a budget as an option, and the runtime had
-not passed it. The fix hands the cap to the harness, which ends the run
-when it is reached, and records the stop as a cost budget violation in
-the same shape as a call denial. Run B, the same agent that afternoon
-with the cap at 0.10 USD, made two calls and was stopped by the harness at
-0.104 USD after six seconds. Both receipts verify. The harness checks
-after each model call, so the overshoot should be at most one call, and
-on this run it was. That bound is the harness's, observed once here, not
+The cost did not. The run ended thirteen minutes in with 7.09 USD
+recorded, and one line before it a violation reading "run cost 7.0905
+exceeded 2.0". The cap had been compared to the total only when the
+result arrived. The gate cannot enforce cost. It sees tool calls, not
+tokens, and the money accrues in the model calls between them. The
+harness knows the cost after every call and accepts a budget as an
+option, and the runtime had not passed it. The fix hands the cap to the
+harness, which ends the run when it is reached, and records the stop as a
+cost budget violation in the same shape as a call denial. Run B, the same
+agent that afternoon with the cap at 0.10 USD, made two calls and was
+stopped at 0.104 USD after six seconds. Both receipts verify. The harness
+checks after each model call, so the overshoot should be at most one
+call, and here it was. That bound is the harness's, observed once, not
 proven by the runtime.
 
-Three cost figures appear in a run's record and they are not the same
-thing. The cap is the policy's number. The stop is the harness's act, at
-the harness's own price table. The recorded cost is what the harness
-reported when the run ended, and for a resumed run the harness reports
-the whole session's total, so the runtime records the difference from
-what the session had cost before. That subtraction came after run A was
-resumed, which is why one wrong line stands in its log, as section 4
-says.
+A run's record holds three cost figures. The cap is the policy's number.
+The stop is the harness's act at its own price table. The recorded cost
+is what the harness reported at the end, and for a resumed run the
+harness reports the whole session, so the runtime records the difference
+from what the session had cost before. That subtraction came after run A
+was resumed, which is why one wrong line stands in its log (section 4).
 
 ### 3.2 A binary taint bit makes the operator weaken the policy
 
@@ -261,12 +239,12 @@ as the reason. The answer is trimmed and lowercased, and only y or yes
 allows. Any other answer, a closed terminal, or nobody attached is a
 denial bound to that tool and that argument digest, and it stays for the
 run. The question has no timeout of its own, because the run clock stands
-still while it is open, and cancelling the run ends the wait.
+still while it is open, and canceling the run ends the wait.
 
 Run C, a probe with a sixty-second timeout on purpose, called `ask_human`
 six seconds in and got its answer 68 seconds later. The run finished 77
 seconds after it started, without a timeout, at 0.035 USD. Run D, the real job, put four questions to me, answered in 43,
-35 and 40 seconds before I cancelled during the fourth. All eight of its
+35 and 40 seconds before I canceled during the fourth. All eight of its
 calls were allowed and verify. Its final write, marked for approval, was
 not reached, so the approval path is proven in tests and not yet seen on
 a real job.
